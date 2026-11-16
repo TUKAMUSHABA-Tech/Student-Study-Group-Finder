@@ -3,6 +3,10 @@
 ### Department of Computing and Technology
 ### Course Unit: Web and Mobile Application Development Group Assignment
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-0B3B60?style=for-the-badge&logo=github)](https://tukamushaba-tech.github.io/Student-Study-Group-Finder/)
+
+> **🌐 Live Demo URL:** [https://tukamushaba-tech.github.io/Student-Study-Group-Finder/](https://tukamushaba-tech.github.io/Student-Study-Group-Finder/)
+
 ---
 
 ## 1. Project Introduction

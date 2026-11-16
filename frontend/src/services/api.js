@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { broadcastNotification } from '../context/NotificationContext';
 
 // Default clean initial dataset
 const initialMockStore = {
@@ -97,6 +98,7 @@ function handleClientMockRequest(method, url, data) {
     };
     store.users.push(newUser);
     saveMockStore(store);
+    broadcastNotification('user_registered', `📝 New student "${full_name}" just registered on the platform!`, full_name);
     return {
       data: {
         success: true,
@@ -176,6 +178,7 @@ function handleClientMockRequest(method, url, data) {
       store.memberships.push({ id: Date.now() + 1, user_id: currentUser.id, group_id: newId, role: 'leader' });
     }
     saveMockStore(store);
+    broadcastNotification('group_created', `📚 New study group "${data.name}" (${data.course_code.toUpperCase()}) was created by ${currentUser ? currentUser.full_name : 'a student'}!`, currentUser ? currentUser.full_name : '');
     return { data: { success: true, groupId: newId, group: newGroup } };
   }
 
@@ -190,6 +193,7 @@ function handleClientMockRequest(method, url, data) {
     const g = store.groups.find(x => x.id === gId);
     if (g) g.member_count += 1;
     saveMockStore(store);
+    broadcastNotification('member_joined', `👤 ${currentUser ? currentUser.full_name : 'A student'} joined the study group "${g ? g.name : ''}"!`, currentUser ? currentUser.full_name : '');
     return { data: { success: true, message: 'Joined study group!' } };
   }
 
@@ -249,6 +253,7 @@ function handleClientMockRequest(method, url, data) {
     };
     store.sessions.push(newSession);
     saveMockStore(store);
+    broadcastNotification('session_created', `📅 New study session "${data.title}" scheduled for ${data.session_date} by ${currentUser ? currentUser.full_name : 'a student'}!`, currentUser ? currentUser.full_name : '');
     return { data: { success: true, message: 'Session scheduled!', sessionId: newSession.id } };
   }
 
@@ -274,6 +279,7 @@ function handleClientMockRequest(method, url, data) {
     };
     store.posts.unshift(newPost);
     saveMockStore(store);
+    broadcastNotification('post_created', `💬 ${currentUser ? currentUser.full_name : 'A student'} posted "${data.title}" in a study group discussion!`, currentUser ? currentUser.full_name : '');
     return { data: { success: true, message: 'Post created!', postId: newPost.id } };
   }
 
@@ -302,6 +308,16 @@ function handleClientMockRequest(method, url, data) {
 
   // Admin Stats
   if (cleanUrl === '/admin/stats' && method === 'get') {
+    // Dynamically compute active courses from actual groups
+    const courseCounts = {};
+    store.groups.forEach(g => {
+      courseCounts[g.course_code] = (courseCounts[g.course_code] || 0) + 1;
+    });
+    const activeCourses = Object.entries(courseCounts)
+      .map(([course_code, group_count]) => ({ course_code, group_count }))
+      .sort((a, b) => b.group_count - a.group_count)
+      .slice(0, 5);
+
     return {
       data: {
         success: true,
@@ -310,12 +326,7 @@ function handleClientMockRequest(method, url, data) {
           totalGroups: store.groups.length,
           totalMemberships: store.memberships.length,
           totalSessions: store.sessions.length,
-          activeCourses: [
-            { course_code: 'BIT 1101', group_count: 2 },
-            { course_code: 'BIT 1102', group_count: 1 },
-            { course_code: 'BBA 1104', group_count: 1 },
-            { course_code: 'LAW 1100', group_count: 1 }
-          ]
+          activeCourses
         }
       }
     };
@@ -324,6 +335,37 @@ function handleClientMockRequest(method, url, data) {
   // Admin Users
   if (cleanUrl === '/admin/users' && method === 'get') {
     return { data: { success: true, count: store.users.length, users: store.users } };
+  }
+
+  // Admin: Update user role
+  if (cleanUrl.match(/^\/admin\/users\/\d+\/role$/) && method === 'put') {
+    const uId = parseInt(cleanUrl.split('/')[3], 10);
+    const u = store.users.find(x => x.id === uId);
+    if (u) {
+      u.role = data.role;
+      saveMockStore(store);
+    }
+    return { data: { success: true, message: 'User role updated!' } };
+  }
+
+  // Admin: Delete user
+  if (cleanUrl.match(/^\/admin\/users\/\d+$/) && method === 'delete') {
+    const uId = parseInt(cleanUrl.split('/')[3], 10);
+    store.users = store.users.filter(x => x.id !== uId);
+    store.memberships = store.memberships.filter(m => m.user_id !== uId);
+    saveMockStore(store);
+    return { data: { success: true, message: 'User deleted.' } };
+  }
+
+  // Delete group (admin)
+  if (cleanUrl.match(/^\/groups\/\d+$/) && method === 'delete') {
+    const gId = parseInt(cleanUrl.split('/')[2], 10);
+    store.groups = store.groups.filter(x => x.id !== gId);
+    store.memberships = store.memberships.filter(m => m.group_id !== gId);
+    store.sessions = store.sessions.filter(s => s.group_id !== gId);
+    store.posts = store.posts.filter(p => p.group_id !== gId);
+    saveMockStore(store);
+    return { data: { success: true, message: 'Group deleted.' } };
   }
 
   return { data: { success: true } };

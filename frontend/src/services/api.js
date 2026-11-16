@@ -5,9 +5,9 @@ const initialMockStore = {
   users: [
     {
       id: 1,
-      full_name: 'Administrator System',
-      email: 'admin@ucu.ac.ug',
-      password: 'Password123!',
+      full_name: 'TUKAMUSHABA BAKER',
+      email: 'bakertukamushaba905@gmail.com',
+      password: 'Baker@123',
       programme: 'Administration',
       year_of_study: 1,
       role: 'admin'
@@ -21,7 +21,7 @@ const initialMockStore = {
 };
 
 function getMockStore() {
-  const data = localStorage.getItem('ucu_gh_pages_store_v2');
+  const data = localStorage.getItem('ucu_gh_pages_store_v3');
   if (data) {
     try {
       return JSON.parse(data);
@@ -29,12 +29,12 @@ function getMockStore() {
       // fallback
     }
   }
-  localStorage.setItem('ucu_gh_pages_store_v2', JSON.stringify(initialMockStore));
+  localStorage.setItem('ucu_gh_pages_store_v3', JSON.stringify(initialMockStore));
   return JSON.parse(JSON.stringify(initialMockStore));
 }
 
 function saveMockStore(store) {
-  localStorage.setItem('ucu_gh_pages_store_v2', JSON.stringify(store));
+  localStorage.setItem('ucu_gh_pages_store_v3', JSON.stringify(store));
 }
 
 // Check if running on GitHub Pages or static host
@@ -70,7 +70,7 @@ function handleClientMockRequest(method, url, data) {
   if (cleanUrl === '/auth/login' && method === 'post') {
     const { email, password } = data;
     const user = store.users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (user && (user.password === password || password === 'Password123!')) {
+    if (user && (user.password === password || password === 'Baker@123')) {
       return {
         data: {
           success: true,

@@ -13,9 +13,9 @@ const defaultSeed = {
   users: [
     {
       id: 1,
-      full_name: 'Administrator System',
-      email: 'admin@ucu.ac.ug',
-      password: '', // will be hashed
+      full_name: 'TUKAMUSHABA BAKER',
+      email: 'bakertukamushaba905@gmail.com',
+      password: '', // will be hashed on first init
       programme: 'Administration',
       year_of_study: 1,
       role: 'admin',
@@ -50,7 +50,7 @@ async function initFallbackStore() {
     }
   } else {
     mockData = JSON.parse(JSON.stringify(defaultSeed));
-    const hashed = await bcrypt.hash('Password123!', 10);
+    const hashed = await bcrypt.hash('Baker@123', 10);
     for (const u of mockData.users) {
       u.password = hashed;
     }

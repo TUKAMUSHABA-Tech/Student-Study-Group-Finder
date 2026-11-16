@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogIn, AlertCircle, KeyRound, ShieldCheck, UserCheck } from 'lucide-react';
+import { AlertCircle, KeyRound } from 'lucide-react';
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -20,7 +20,7 @@ const LoginPage = () => {
     setError('');
 
     if (!email || !password) {
-      setError('Please provide both your UCU email and password.');
+      setError('Please provide both your email and password.');
       return;
     }
 
@@ -37,12 +37,6 @@ const LoginPage = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Quick fill helper for University Lecturer / Student evaluation
-  const setDemoRole = (demoEmail) => {
-    setEmail(demoEmail);
-    setPassword('Password123!');
   };
 
   return (
@@ -65,7 +59,7 @@ const LoginPage = () => {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">University Email</label>
+            <label className="form-label">Email Address</label>
             <input
               type="email"
               className="form-control"
@@ -92,26 +86,6 @@ const LoginPage = () => {
             {loading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
-
-        {/* Master Admin Fast Login Helper */}
-        <div className="demo-credentials-box">
-          <strong style={{ display: 'block', marginBottom: '0.25rem', color: 'var(--ucu-primary-dark)' }}>
-            System Administrator Account:
-          </strong>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
-            Click below to auto-fill the Master Admin credentials:
-          </p>
-          <div className="demo-btn-group">
-            <button
-              type="button"
-              className="btn btn-sm btn-outline"
-              onClick={() => setDemoRole('admin@ucu.ac.ug')}
-              title="Platform Administrator"
-            >
-              <ShieldCheck size={13} /> Admin (admin@ucu.ac.ug)
-            </button>
-          </div>
-        </div>
 
         <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
           Don't have an account yet?{' '}

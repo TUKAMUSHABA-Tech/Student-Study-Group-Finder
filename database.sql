@@ -139,11 +139,11 @@ CREATE TABLE `comments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================
--- MASTER ADMINISTRATOR ACCOUNT (Initial Setup)
--- Default password: Password123!
--- You can log in with this account or register new student accounts
+-- MASTER ADMINISTRATOR ACCOUNT
+-- Admin: TUKAMUSHABA BAKER
+-- Email: bakertukamushaba905@gmail.com  |  Password: Baker@123
 -- =====================================================================
 
 INSERT INTO `users` (`id`, `full_name`, `email`, `password`, `programme`, `year_of_study`, `role`) VALUES
-(1, 'Administrator System', 'admin@ucu.ac.ug', '$2b$10$vY3Bsm1N8YfA9b06y2/jkeGzF.Z/9uE4u8QGfEeVZ0X9qQvCsh0pW', 'Administration', 1, 'admin');
+(1, 'TUKAMUSHABA BAKER', 'bakertukamushaba905@gmail.com', '$2a$10$6C.GdoC5bQyAC4oeusn3i.SYjdbMyGEAbMdup2Msh6LNgP4O35Gnm', 'Administration', 1, 'admin');
 

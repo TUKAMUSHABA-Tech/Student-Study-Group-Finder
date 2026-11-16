@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Default initial dataset for live GitHub Pages preview mode
+// Default clean initial dataset
 const initialMockStore = {
   users: [
     {
@@ -11,179 +11,17 @@ const initialMockStore = {
       programme: 'Administration',
       year_of_study: 1,
       role: 'admin'
-    },
-    {
-      id: 2,
-      full_name: 'Baker Mugisa',
-      email: 'baker@ucu.ac.ug',
-      password: 'Password123!',
-      programme: 'Bachelor of Science in Information Technology',
-      year_of_study: 1,
-      role: 'leader'
-    },
-    {
-      id: 3,
-      full_name: 'Grace Atuhaire',
-      email: 'grace@ucu.ac.ug',
-      password: 'Password123!',
-      programme: 'Bachelor of Science in Information Technology',
-      year_of_study: 1,
-      role: 'student'
-    },
-    {
-      id: 4,
-      full_name: 'Emmanuel Kigozi',
-      email: 'emmanuel@ucu.ac.ug',
-      password: 'Password123!',
-      programme: 'Bachelor of Business Administration',
-      year_of_study: 2,
-      role: 'student'
-    },
-    {
-      id: 5,
-      full_name: 'Sarah Nambatya',
-      email: 'sarah@ucu.ac.ug',
-      password: 'Password123!',
-      programme: 'Bachelor of Laws',
-      year_of_study: 1,
-      role: 'student'
     }
   ],
-  groups: [
-    {
-      id: 1,
-      name: 'Web Development Mastery Group',
-      course_code: 'BIT 1101',
-      faculty: 'Faculty of Science and Technology',
-      description: 'Dedicated group for Year One IT students mastering HTML5, CSS3, JavaScript, React.js and Express backend concepts.',
-      meeting_location: 'Main Library Discussion Room 3 & Zoom',
-      leader_id: 2,
-      leader_name: 'Baker Mugisa',
-      member_count: 3
-    },
-    {
-      id: 2,
-      name: 'Structured C++ Programming Hub',
-      course_code: 'BIT 1102',
-      faculty: 'Faculty of Science and Technology',
-      description: 'Collaborative peer code reviews, debugging pointers, arrays, functions, and exam prep for C++.',
-      meeting_location: 'Tech Lab 2 (Nkoyoyo Hall)',
-      leader_id: 2,
-      leader_name: 'Baker Mugisa',
-      member_count: 2
-    },
-    {
-      id: 3,
-      name: 'Business Accounting & Finance Study Pod',
-      course_code: 'BBA 1104',
-      faculty: 'Faculty of Business and Administration',
-      description: 'Weekly practice group balancing ledgers, financial statements, cashflow modeling, and mid-semester revision.',
-      meeting_location: 'Ham Mukasa Library Ground Floor',
-      leader_id: 4,
-      leader_name: 'Emmanuel Kigozi',
-      member_count: 2
-    },
-    {
-      id: 4,
-      name: 'Constitutional Law Forum',
-      course_code: 'LAW 1100',
-      faculty: 'Faculty of Law',
-      description: 'Analysis of landmark Ugandan constitutional cases, moot court preparations, and essay writing discussions.',
-      meeting_location: 'Bishop Tucker Hall Room 12',
-      leader_id: 5,
-      leader_name: 'Sarah Nambatya',
-      member_count: 1
-    }
-  ],
-  memberships: [
-    { id: 1, user_id: 2, group_id: 1, role: 'leader' },
-    { id: 2, user_id: 3, group_id: 1, role: 'member' },
-    { id: 3, user_id: 4, group_id: 1, role: 'member' },
-    { id: 4, user_id: 2, group_id: 2, role: 'leader' },
-    { id: 5, user_id: 3, group_id: 2, role: 'member' },
-    { id: 6, user_id: 4, group_id: 3, role: 'leader' },
-    { id: 7, user_id: 3, group_id: 3, role: 'member' },
-    { id: 8, user_id: 5, group_id: 4, role: 'leader' }
-  ],
-  sessions: [
-    {
-      id: 1,
-      group_id: 1,
-      group_name: 'Web Development Mastery Group',
-      course_code: 'BIT 1101',
-      title: 'React State Management & Props Review',
-      session_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      session_time: '15:00:00',
-      location: 'Library Discussion Room 3',
-      description: 'Hands-on session covering useState, useEffect, and passing data between components.',
-      created_by: 2,
-      created_by_name: 'Baker Mugisa'
-    },
-    {
-      id: 2,
-      group_id: 1,
-      group_name: 'Web Development Mastery Group',
-      course_code: 'BIT 1101',
-      title: 'Express.js & MySQL Integration Lab',
-      session_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      session_time: '16:30:00',
-      location: 'Online via Zoom (link in group chat)',
-      description: 'Connecting backend controllers to MySQL using mysql2 pool with parameterized queries.',
-      created_by: 2,
-      created_by_name: 'Baker Mugisa'
-    },
-    {
-      id: 3,
-      group_id: 2,
-      group_name: 'Structured C++ Programming Hub',
-      course_code: 'BIT 1102',
-      title: 'C++ Pointers and Dynamic Memory Workshop',
-      session_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      session_time: '14:00:00',
-      location: 'Tech Lab 2',
-      description: 'Tackling past exam questions on memory allocation, structs, and linked lists.',
-      created_by: 2,
-      created_by_name: 'Baker Mugisa'
-    }
-  ],
-  posts: [
-    {
-      id: 1,
-      group_id: 1,
-      user_id: 2,
-      title: 'Welcome to the Web & Mobile App Study Pod!',
-      content: 'Hello everyone! Let us use this group to share code snippets, organize revision meetings, and help each other debug our assignments.',
-      post_type: 'announcement',
-      author_name: 'Baker Mugisa',
-      author_programme: 'BSIT',
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 2,
-      group_id: 1,
-      user_id: 3,
-      title: 'Question about React useEffect dependency array',
-      content: 'Could someone explain why omitting dependencies in useEffect causes infinite re-renders? Looking forward to our next meeting!',
-      post_type: 'question',
-      author_name: 'Grace Atuhaire',
-      author_programme: 'BSIT',
-      created_at: new Date().toISOString()
-    }
-  ],
-  comments: [
-    {
-      id: 1,
-      post_id: 2,
-      user_id: 2,
-      author_name: 'Baker Mugisa',
-      content: 'Great question Grace! If you omit the dependency array completely, the effect runs after every single render.',
-      created_at: new Date().toISOString()
-    }
-  ]
+  groups: [],
+  memberships: [],
+  sessions: [],
+  posts: [],
+  comments: []
 };
 
 function getMockStore() {
-  const data = localStorage.getItem('ucu_gh_pages_store');
+  const data = localStorage.getItem('ucu_gh_pages_store_v2');
   if (data) {
     try {
       return JSON.parse(data);
@@ -191,12 +29,12 @@ function getMockStore() {
       // fallback
     }
   }
-  localStorage.setItem('ucu_gh_pages_store', JSON.stringify(initialMockStore));
+  localStorage.setItem('ucu_gh_pages_store_v2', JSON.stringify(initialMockStore));
   return JSON.parse(JSON.stringify(initialMockStore));
 }
 
 function saveMockStore(store) {
-  localStorage.setItem('ucu_gh_pages_store', JSON.stringify(store));
+  localStorage.setItem('ucu_gh_pages_store_v2', JSON.stringify(store));
 }
 
 // Check if running on GitHub Pages or static host

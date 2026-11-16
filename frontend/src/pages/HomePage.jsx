@@ -124,35 +124,46 @@ const HomePage = () => {
             </Link>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-            {featuredGroups.map((g) => (
-              <div key={g.id} className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <span className="badge badge-course">{g.course_code}</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <Users size={14} /> {g.member_count} members
-                  </span>
+          {featuredGroups.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '3rem 1.5rem', background: '#FFFFFF' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', marginBottom: '1.25rem' }}>
+                No study groups created yet. Be the first to create an academic study group for your course!
+              </p>
+              <Link to={isAuthenticated ? "/create-group" : "/register"} className="btn btn-accent">
+                Create First Study Group
+              </Link>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+              {featuredGroups.map((g) => (
+                <div key={g.id} className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <span className="badge badge-course">{g.course_code}</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Users size={14} /> {g.member_count} members
+                    </span>
+                  </div>
+                  <h3 style={{ fontSize: '1.15rem', color: 'var(--ucu-primary-dark)', marginBottom: '0.5rem', fontWeight: 700 }}>
+                    {g.name}
+                  </h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--ucu-primary)', fontWeight: 500, marginBottom: '0.75rem' }}>
+                    {g.faculty}
+                  </p>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.25rem', flex: 1, lineHeight: 1.5 }}>
+                    {g.description.length > 110 ? g.description.substring(0, 110) + '...' : g.description}
+                  </p>
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      Led by <strong>{g.leader_name}</strong>
+                    </span>
+                    <Link to={`/groups/${g.id}`} className="btn btn-sm btn-primary">
+                      View Details
+                    </Link>
+                  </div>
                 </div>
-                <h3 style={{ fontSize: '1.15rem', color: 'var(--ucu-primary-dark)', marginBottom: '0.5rem', fontWeight: 700 }}>
-                  {g.name}
-                </h3>
-                <p style={{ fontSize: '0.85rem', color: 'var(--ucu-primary)', fontWeight: 500, marginBottom: '0.75rem' }}>
-                  {g.faculty}
-                </p>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '1.25rem', flex: 1, lineHeight: 1.5 }}>
-                  {g.description.length > 110 ? g.description.substring(0, 110) + '...' : g.description}
-                </p>
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    Led by <strong>{g.leader_name}</strong>
-                  </span>
-                  <Link to={`/groups/${g.id}`} className="btn btn-sm btn-primary">
-                    View Details
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </div>

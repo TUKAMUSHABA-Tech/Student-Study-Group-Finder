@@ -93,38 +93,22 @@ const LoginPage = () => {
           </button>
         </form>
 
-        {/* Demo Fast Login Helper for Evaluators */}
+        {/* Master Admin Fast Login Helper */}
         <div className="demo-credentials-box">
           <strong style={{ display: 'block', marginBottom: '0.25rem', color: 'var(--ucu-primary-dark)' }}>
-            Evaluation Demo Accounts:
+            System Administrator Account:
           </strong>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
-            Click any role to autofill test credentials (Password: <code>Password123!</code>):
+            Click below to auto-fill the Master Admin credentials:
           </p>
           <div className="demo-btn-group">
-            <button
-              type="button"
-              className="btn btn-sm btn-outline"
-              onClick={() => setDemoRole('grace@ucu.ac.ug')}
-              title="Year 1 BSIT Student"
-            >
-              <UserCheck size={13} /> Student (Grace)
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline"
-              onClick={() => setDemoRole('baker@ucu.ac.ug')}
-              title="Group Leader (Web & C++)"
-            >
-              <KeyRound size={13} /> Group Leader (Baker)
-            </button>
             <button
               type="button"
               className="btn btn-sm btn-outline"
               onClick={() => setDemoRole('admin@ucu.ac.ug')}
               title="Platform Administrator"
             >
-              <ShieldCheck size={13} /> Admin (Administrator)
+              <ShieldCheck size={13} /> Admin (admin@ucu.ac.ug)
             </button>
           </div>
         </div>

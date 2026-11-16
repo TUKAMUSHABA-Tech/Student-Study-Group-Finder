@@ -139,57 +139,11 @@ CREATE TABLE `comments` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================
--- SEED DATA FOR TESTING AND ACADEMIC EVALUATION
--- Default password for all seed accounts is: Password123!
--- Bcrypt hash generated with 10 salt rounds:
--- $2a$10$7vW1t2mF2M4wB7E7Gq0s5.5z1e4v3d6F0i1u2y3t4r5e6w7q8a9s0 -> standard test hash
--- We will insert well-known test accounts:
--- 1. admin@ucu.ac.ug (Administrator)
--- 2. baker@ucu.ac.ug (Group Leader / Year 1 BSIT)
--- 3. grace@ucu.ac.ug (Student / Year 1 BSIT)
--- 4. emmanuel@ucu.ac.ug (Student / Year 2 BBA)
+-- MASTER ADMINISTRATOR ACCOUNT (Initial Setup)
+-- Default password: Password123!
+-- You can log in with this account or register new student accounts
 -- =====================================================================
 
 INSERT INTO `users` (`id`, `full_name`, `email`, `password`, `programme`, `year_of_study`, `role`) VALUES
-(1, 'Administrator System', 'admin@ucu.ac.ug', '$2b$10$vY3Bsm1N8YfA9b06y2/jkeGzF.Z/9uE4u8QGfEeVZ0X9qQvCsh0pW', 'Administration', 1, 'admin'),
-(2, 'Baker Mugisa', 'baker@ucu.ac.ug', '$2b$10$vY3Bsm1N8YfA9b06y2/jkeGzF.Z/9uE4u8QGfEeVZ0X9qQvCsh0pW', 'Bachelor of Science in Information Technology', 1, 'leader'),
-(3, 'Grace Atuhaire', 'grace@ucu.ac.ug', '$2b$10$vY3Bsm1N8YfA9b06y2/jkeGzF.Z/9uE4u8QGfEeVZ0X9qQvCsh0pW', 'Bachelor of Science in Information Technology', 1, 'student'),
-(4, 'Emmanuel Kigozi', 'emmanuel@ucu.ac.ug', '$2b$10$vY3Bsm1N8YfA9b06y2/jkeGzF.Z/9uE4u8QGfEeVZ0X9qQvCsh0pW', 'Bachelor of Business Administration', 2, 'student'),
-(5, 'Sarah Nambatya', 'sarah@ucu.ac.ug', '$2b$10$vY3Bsm1N8YfA9b06y2/jkeGzF.Z/9uE4u8QGfEeVZ0X9qQvCsh0pW', 'Bachelor of Laws', 1, 'student');
+(1, 'Administrator System', 'admin@ucu.ac.ug', '$2b$10$vY3Bsm1N8YfA9b06y2/jkeGzF.Z/9uE4u8QGfEeVZ0X9qQvCsh0pW', 'Administration', 1, 'admin');
 
--- Seed Study Groups
-INSERT INTO `study_groups` (`id`, `name`, `course_code`, `faculty`, `description`, `meeting_location`, `leader_id`) VALUES
-(1, 'Web Development Mastery Group', 'BIT 1101', 'Faculty of Science and Technology', 'Dedicated group for Year One IT students mastering HTML5, CSS3, JavaScript, React.js and Express backend concepts.', 'Main Library Discussion Room 3 & Zoom', 2),
-(2, 'Structured C++ Programming Hub', 'BIT 1102', 'Faculty of Science and Technology', 'Collaborative peer code reviews, debugging pointers, arrays, functions, and exam prep for C++.', 'Tech Lab 2 (Nkoyoyo Hall)', 2),
-(3, 'Business Accounting & Finance Study Pod', 'BBA 1104', 'Faculty of Business and Administration', 'Weekly practice group balancing ledgers, financial statements, cashflow modeling, and mid-semester revision.', 'Ham Mukasa Library Ground Floor', 4),
-(4, 'Constitutional Law Forum', 'LAW 1100', 'Faculty of Law', 'Analysis of landmark Ugandan constitutional cases, moot court preparations, and essay writing discussions.', 'Bishop Tucker Hall Room 12', 5);
-
--- Seed Memberships
-INSERT INTO `memberships` (`user_id`, `group_id`, `role`) VALUES
-(2, 1, 'leader'),
-(3, 1, 'member'),
-(4, 1, 'member'),
-(2, 2, 'leader'),
-(3, 2, 'member'),
-(4, 3, 'leader'),
-(5, 4, 'leader');
-
--- Seed Study Sessions
-INSERT INTO `study_sessions` (`id`, `group_id`, `title`, `session_date`, `session_time`, `location`, `description`, `created_by`) VALUES
-(1, 1, 'React State Management & Props Review', CURDATE() + INTERVAL 2 DAY, '15:00:00', 'Library Discussion Room 3', 'Hands-on session covering useState, useEffect, and passing data between components.', 2),
-(2, 1, 'Express.js & MySQL Integration Lab', CURDATE() + INTERVAL 5 DAY, '16:30:00', 'Online via Zoom (link in group chat)', 'Connecting backend controllers to MySQL using mysql2 pool with parameterized queries.', 2),
-(3, 2, 'C++ Pointers and Dynamic Memory Workshop', CURDATE() + INTERVAL 3 DAY, '14:00:00', 'Tech Lab 2', 'Tackling past exam questions on memory allocation, structs, and linked lists.', 2),
-(4, 3, 'Cash Flow Statement Practice Session', CURDATE() + INTERVAL 4 DAY, '10:00:00', 'Ham Mukasa Library Pod 4', 'Solving Chapter 5 practice exercises before the test.', 4);
-
--- Seed Posts
-INSERT INTO `posts` (`id`, `group_id`, `user_id`, `title`, `content`, `post_type`) VALUES
-(1, 1, 2, 'Welcome to the Web & Mobile App Study Pod!', 'Hello everyone! Let us use this group to share code snippets, organize revision meetings, and help each other debug our assignments.', 'announcement'),
-(2, 1, 3, 'Question about React useEffect dependency array', 'Could someone explain why omitting dependencies in useEffect causes infinite re-renders? Looking forward to our next meeting!', 'question'),
-(3, 1, 2, 'Upcoming Mid-Semester Test Preparation', 'Please review the official course outline on Moodle. We will cover JWT tokens and MySQL foreign keys during our Wednesday session.', 'discussion'),
-(4, 2, 2, 'Reminder: Bring your laptops with GCC / Dev-C++ installed', 'For Thursday session, please make sure you have your compiler setup ready to test pointer programs.', 'announcement');
-
--- Seed Comments
-INSERT INTO `comments` (`id`, `post_id`, `user_id`, `content`) VALUES
-(1, 2, 2, 'Great question Grace! If you omit the dependency array completely, the effect runs after every single render. If that effect updates state, it triggers a new render, creating an infinite loop!'),
-(2, 2, 4, 'Thanks Baker for clarifying! That helped me fix my dashboard component as well.'),
-(3, 3, 3, 'Noted! I will prepare some sample SQL queries with foreign keys for us to test.');

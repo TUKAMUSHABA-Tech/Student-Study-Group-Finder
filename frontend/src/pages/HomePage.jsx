@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { Search, Users, CalendarCheck, MessageSquare, BookOpen, ArrowRight, CheckCircle2 } from 'lucide-react';
 
 const HomePage = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAdmin } = useAuth();
   const [featuredGroups, setFeaturedGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,8 +38,8 @@ const HomePage = () => {
 
         <div className="hero-actions">
           {isAuthenticated ? (
-            <Link to="/dashboard" className="btn btn-accent" style={{ padding: '0.85rem 1.75rem', fontSize: '1rem' }}>
-              Go to Student Dashboard <ArrowRight size={18} />
+            <Link to={isAdmin ? "/admin" : "/dashboard"} className="btn btn-accent" style={{ padding: '0.85rem 1.75rem', fontSize: '1rem' }}>
+              {isAdmin ? 'Go to Admin Control Center' : 'Go to Student Dashboard'} <ArrowRight size={18} />
             </Link>
           ) : (
             <>

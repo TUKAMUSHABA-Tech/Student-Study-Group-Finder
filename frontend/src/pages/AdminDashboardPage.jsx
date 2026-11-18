@@ -35,7 +35,13 @@ const AdminDashboardPage = () => {
       ]);
       if (statsRes.data?.success) setStats(statsRes.data.stats);
       if (usersRes.data?.success && Array.isArray(usersRes.data.users)) {
-        setUsers(usersRes.data.users);
+        // Purge any lingering demo accounts permanently
+        const demoEmails = ['admin@ucu.ac.ug', 'grace@ucu.ac.ug', 'baker@ucu.ac.ug', 'student@ucu.ac.ug', 'leader@ucu.ac.ug'];
+        const cleanUsers = usersRes.data.users.filter(u => 
+          !demoEmails.includes((u.email || '').toLowerCase()) && 
+          (u.full_name || '').toLowerCase() !== 'administrator system'
+        );
+        setUsers(cleanUsers);
       }
       if (groupsRes.data?.success && Array.isArray(groupsRes.data.groups)) {
         setGroups(groupsRes.data.groups);
@@ -96,14 +102,27 @@ const AdminDashboardPage = () => {
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Delete this user permanently? This cannot be undone.')) return;
+    if (!window.confirm('Delete this student account permanently? This cannot be undone.')) return;
     try {
       const res = await api.delete(`/admin/users/${userId}`);
-      if (res.data.success) {
-        setFeedback({ message: '🗑️ User deleted.', type: 'success' });
-        setUsers(users.filter(u => u.id !== userId));
+      if (res.data?.success) {
+        setFeedback({ message: '🗑️ User deleted from platform successfully.', type: 'success' });
+        // Immediately remove from current state
+        setUsers(prev => prev.filter(u => String(u.id) !== String(userId)));
+        // Also update local storage store directly for instant sync
+        try {
+          const raw = localStorage.getItem('ucu_gh_pages_store_v4');
+          if (raw) {
+            const s = JSON.parse(raw);
+            s.users = (s.users || []).filter(u => String(u.id) !== String(userId));
+            localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(s));
+            window.dispatchEvent(new CustomEvent('ucu_store_updated', { detail: s }));
+          }
+        } catch (e) {}
         loadAdminData();
         setTimeout(() => setFeedback({ message: '', type: '' }), 3000);
+      } else {
+        alert(res.data?.message || 'Error deleting user.');
       }
     } catch (err) {
       setFeedback({ message: err.response?.data?.message || 'Error deleting user.', type: 'danger' });
@@ -446,17 +465,26 @@ const AdminDashboardPage = () => {
                       </select>
                     </td>
                     <td>
-                      {u.role !== 'admin' ? (
+                      {u.email?.toLowerCase() !== 'bakertukamushaba905@gmail.com' ? (
                         <button
                           onClick={() => handleDeleteUser(u.id)}
                           className="btn btn-sm btn-outline"
-                          style={{ color: 'var(--danger)', padding: '0.2rem 0.5rem' }}
-                          title="Delete User"
+                          style={{
+                            color: '#DC2626',
+                            borderColor: '#FCA5A5',
+                            padding: '0.25rem 0.6rem',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                          title="Delete User Permanently"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={14} /> <span>Delete</span>
                         </button>
                       ) : (
-                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, background: '#F1F5F9', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#DC2626', fontWeight: 700, background: '#FEF2F2', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid #FECACA' }}>
                           Primary Admin
                         </span>
                       )}

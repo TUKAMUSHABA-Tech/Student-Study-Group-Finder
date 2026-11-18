@@ -25,9 +25,17 @@ const Sidebar = () => {
           </p>
         </div>
 
-        <NavLink to="/dashboard" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} onClick={() => setCollapsed(true)}>
-          <LayoutDashboard size={18} /> <span>Student Dashboard</span>
-        </NavLink>
+        {/* For regular students show Student Dashboard; for admins show Admin Control Center and remove Student Dashboard */}
+        {!isAdmin ? (
+          <NavLink to="/dashboard" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} onClick={() => setCollapsed(true)}>
+            <LayoutDashboard size={18} /> <span>Student Dashboard</span>
+          </NavLink>
+        ) : (
+          <NavLink to="/admin" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} style={{ color: '#DC2626', fontWeight: 700 }} onClick={() => setCollapsed(true)}>
+            <ShieldAlert size={18} /> <span>Admin Control Center</span>
+          </NavLink>
+        )}
+
         <NavLink to="/groups" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} onClick={() => setCollapsed(true)}>
           <Search size={18} /> <span>Find Study Groups</span>
         </NavLink>
@@ -46,19 +54,6 @@ const Sidebar = () => {
         <NavLink to="/profile" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} onClick={() => setCollapsed(true)}>
           <UserCheck size={18} /> <span>My Student Profile</span>
         </NavLink>
-
-        {isAdmin && (
-          <>
-            <div style={{ padding: '0.75rem 0.75rem 0.25rem', marginTop: '0.5rem', borderTop: '1px solid var(--border-color)' }}>
-              <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#EF4444', fontWeight: 700, letterSpacing: '0.5px' }}>
-                Administration
-              </p>
-            </div>
-            <NavLink to="/admin" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} style={{ color: '#DC2626' }} onClick={() => setCollapsed(true)}>
-              <ShieldAlert size={18} /> <span>Admin Dashboard</span>
-            </NavLink>
-          </>
-        )}
       </div>
     </aside>
   );

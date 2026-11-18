@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { broadcastNotification } from '../context/NotificationContext';
 import { GraduationCap, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const RegisterPage = () => {
@@ -51,6 +52,11 @@ const RegisterPage = () => {
     try {
       const res = await register(formData);
       if (res.success) {
+        broadcastNotification(
+          'user_registered',
+          `👤 New student registered: ${formData.full_name} (${formData.email}) - Added to All Registered Users`,
+          formData.full_name
+        );
         navigate('/dashboard');
       } else {
         setError(res.message || 'Registration failed.');

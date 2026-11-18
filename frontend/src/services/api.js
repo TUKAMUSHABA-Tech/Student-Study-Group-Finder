@@ -1,19 +1,21 @@
 import axios from 'axios';
 import { broadcastNotification } from '../context/NotificationContext';
 
-// Default clean initial dataset
+// Primary admin account definition
+const PRIMARY_ADMIN = {
+  id: 1,
+  full_name: 'TUKAMUSHABA BAKER',
+  email: 'bakertukamushaba905@gmail.com',
+  password: 'Baker@123',
+  programme: 'Administration',
+  year_of_study: 1,
+  role: 'admin',
+  created_at: '2026-11-16T16:26:15.085Z'
+};
+
+// Default clean initial dataset - strictly ONLY primary admin
 const initialMockStore = {
-  users: [
-    {
-      id: 1,
-      full_name: 'TUKAMUSHABA BAKER',
-      email: 'bakertukamushaba905@gmail.com',
-      password: 'Baker@123',
-      programme: 'Administration',
-      year_of_study: 1,
-      role: 'admin'
-    }
-  ],
+  users: [PRIMARY_ADMIN],
   groups: [],
   memberships: [],
   sessions: [],
@@ -21,59 +23,81 @@ const initialMockStore = {
   comments: []
 };
 
+// Demo/default emails to purge permanently from all client stores
+const DEMO_EMAILS = [
+  'admin@ucu.ac.ug',
+  'grace@ucu.ac.ug',
+  'baker@ucu.ac.ug',
+  'student@ucu.ac.ug',
+  'leader@ucu.ac.ug'
+];
+
+function isDemoUser(u) {
+  if (!u) return false;
+  const email = (u.email || '').toLowerCase().trim();
+  const name = (u.full_name || '').toLowerCase().trim();
+  if (DEMO_EMAILS.includes(email)) return true;
+  if (name === 'administrator system' || name === 'demo user') return true;
+  return false;
+}
+
 function getMockStore() {
+  // 1. Purge legacy obsolete store keys so they never resurrect old demo accounts
+  if (typeof localStorage !== 'undefined') {
+    ['ucu_gh_pages_store_v3', 'ucu_gh_pages_store_v2', 'ucu_gh_pages_store', 'ucu_gh_pages_store_v1'].forEach(k => {
+      try { localStorage.removeItem(k); } catch (e) {}
+    });
+  }
+
   let store = null;
-  const data = localStorage.getItem('ucu_gh_pages_store_v4');
+  const data = typeof localStorage !== 'undefined' ? localStorage.getItem('ucu_gh_pages_store_v4') : null;
   if (data) {
     try {
       store = JSON.parse(data);
     } catch (e) {
-      // fallback
+      store = null;
     }
   }
 
-  // Recover any users or groups from prior versions if missing
-  if (!store) {
+  if (!store || !Array.isArray(store.users)) {
     store = JSON.parse(JSON.stringify(initialMockStore));
   }
 
-  // Consolidate users from any previous keys (v3, v2, v1)
-  const previousKeys = ['ucu_gh_pages_store_v3', 'ucu_gh_pages_store_v2', 'ucu_gh_pages_store'];
-  const userMap = new Map();
+  // 2. Filter out ALL demo/default accounts completely
+  store.users = (store.users || []).filter(u => !isDemoUser(u));
 
-  // Master admin must always be guaranteed
-  initialMockStore.users.forEach(u => userMap.set(u.email.toLowerCase(), u));
+  // 3. Guarantee primary admin is always present and has admin role
+  const adminIndex = store.users.findIndex(u => (u.email || '').toLowerCase() === PRIMARY_ADMIN.email.toLowerCase());
+  if (adminIndex === -1) {
+    store.users.unshift({ ...PRIMARY_ADMIN });
+  } else {
+    store.users[adminIndex].role = 'admin';
+    store.users[adminIndex].full_name = 'TUKAMUSHABA BAKER';
+  }
 
-  // Add existing store users
-  (store.users || []).forEach(u => userMap.set(u.email.toLowerCase(), u));
+  // Ensure collections exist
+  if (!Array.isArray(store.groups)) store.groups = [];
+  if (!Array.isArray(store.memberships)) store.memberships = [];
+  if (!Array.isArray(store.sessions)) store.sessions = [];
+  if (!Array.isArray(store.posts)) store.posts = [];
+  if (!Array.isArray(store.comments)) store.comments = [];
 
-  // Merge any older keys
-  previousKeys.forEach(k => {
+  // Persist cleaned store
+  if (typeof localStorage !== 'undefined') {
     try {
-      const oldRaw = localStorage.getItem(k);
-      if (oldRaw) {
-        const oldParsed = JSON.parse(oldRaw);
-        if (oldParsed.users && Array.isArray(oldParsed.users)) {
-          oldParsed.users.forEach(u => {
-            if (!userMap.has(u.email.toLowerCase())) {
-              userMap.set(u.email.toLowerCase(), u);
-            }
-          });
-        }
-      }
-    } catch (err) {}
-  });
+      localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
+    } catch (e) {}
+  }
 
-  store.users = Array.from(userMap.values());
-  localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
   return store;
 }
 
 function saveMockStore(store) {
   try {
-    localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
-    if (typeof window !== 'undefined') {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
       window.dispatchEvent(new CustomEvent('ucu_store_updated', { detail: store }));
+      window.dispatchEvent(new StorageEvent('storage', { key: 'ucu_gh_pages_store_v4' }));
     }
   } catch (e) {
     console.error('saveMockStore error:', e);
@@ -92,7 +116,7 @@ const realAxios = axios.create({
 
 realAxios.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('ucu_study_token');
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('ucu_study_token') : null;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -107,12 +131,12 @@ function handleClientMockRequest(method, url, data) {
   const cleanUrl = url.replace('/api', '').split('?')[0];
   const queryStr = url.includes('?') ? url.split('?')[1] : '';
   const params = new URLSearchParams(queryStr);
-  const currentUser = JSON.parse(localStorage.getItem('ucu_study_user') || 'null');
+  const currentUser = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('ucu_study_user') || 'null') : null;
 
   // Auth: Login
   if (cleanUrl === '/auth/login' && method === 'post') {
     const { email, password } = data;
-    const user = store.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const user = store.users.find(u => (u.email || '').toLowerCase() === String(email || '').trim().toLowerCase());
     // Match: stored password OR admin master password
     if (user && (user.password === password || password === 'Baker@123')) {
       return {
@@ -132,7 +156,7 @@ function handleClientMockRequest(method, url, data) {
     const { full_name, email, programme, year_of_study, password } = data;
 
     // Check for duplicate email
-    const existing = store.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    const existing = store.users.find(u => (u.email || '').toLowerCase() === String(email).trim().toLowerCase());
     if (existing) {
       return Promise.reject({ response: { status: 400, data: { success: false, message: 'An account with this email already exists.' } } });
     }
@@ -140,23 +164,31 @@ function handleClientMockRequest(method, url, data) {
     const newId = Date.now();
     const newUser = {
       id: newId,
-      full_name,
-      email,
-      password: password || '',   // ← Save password so user can log back in
+      full_name: String(full_name).trim(),
+      email: String(email).trim().toLowerCase(),
+      password: password || '',   // Save password so user can log back in
       programme: programme || 'Bachelor of Science in Information Technology',
       year_of_study: parseInt(year_of_study, 10) || 1,
       role: 'student',
       created_at: new Date().toISOString()
     };
-    store.users.push(newUser);
+    // Prepend new user so it appears at top of All Registered Users list
+    store.users.unshift(newUser);
     saveMockStore(store);
-    broadcastNotification('user_registered', `📝 New student "${full_name}" just registered on the platform!`, full_name);
+
+    // Broadcast instant notification for admin and platform
+    broadcastNotification(
+      'user_registered',
+      `👤 New student registered: ${newUser.full_name} (${newUser.email}) - Added to All Registered Users`,
+      newUser.full_name
+    );
+
     return {
       data: {
         success: true,
         message: 'Student account registered successfully!',
         token: 'gh_pages_mock_jwt_token_' + newId,
-        user: { ...newUser, password: undefined }   // never expose password in response
+        user: { ...newUser, password: undefined }
       }
     };
   }
@@ -167,7 +199,7 @@ function handleClientMockRequest(method, url, data) {
       return { data: { success: true, user: currentUser } };
     }
     if (method === 'put') {
-      const u = store.users.find(x => x.id === currentUser?.id);
+      const u = store.users.find(x => String(x.id) === String(currentUser?.id));
       if (u) {
         Object.assign(u, data);
         saveMockStore(store);
@@ -194,9 +226,9 @@ function handleClientMockRequest(method, url, data) {
   // Groups: My Groups
   if (cleanUrl === '/groups/my-groups' && method === 'get') {
     if (!currentUser) return { data: { success: true, groups: [] } };
-    const userMems = store.memberships.filter(m => m.user_id === currentUser.id);
+    const userMems = store.memberships.filter(m => String(m.user_id) === String(currentUser.id));
     const groups = userMems.map(m => {
-      const g = store.groups.find(x => x.id === m.group_id);
+      const g = store.groups.find(x => String(x.id) === String(m.group_id));
       return g ? { ...g, membership_role: m.role } : null;
     }).filter(Boolean);
     return { data: { success: true, count: groups.length, groups } };
@@ -204,10 +236,10 @@ function handleClientMockRequest(method, url, data) {
 
   // Groups: Single Group Details
   if (cleanUrl.match(/^\/groups\/\d+$/) && method === 'get') {
-    const id = parseInt(cleanUrl.split('/')[2], 10);
-    const g = store.groups.find(x => x.id === id);
+    const id = cleanUrl.split('/')[2];
+    const g = store.groups.find(x => String(x.id) === String(id));
     if (!g) return Promise.reject({ response: { status: 404, data: { message: 'Group not found' } } });
-    const userMembership = currentUser ? store.memberships.find(m => m.user_id === currentUser.id && m.group_id === id) : null;
+    const userMembership = currentUser ? store.memberships.find(m => String(m.user_id) === String(currentUser.id) && String(m.group_id) === String(id)) : null;
     return { data: { success: true, group: g, userMembership } };
   }
 
@@ -217,12 +249,12 @@ function handleClientMockRequest(method, url, data) {
     const newGroup = {
       id: newId,
       name: data.name,
-      course_code: data.course_code.toUpperCase(),
+      course_code: (data.course_code || '').toUpperCase(),
       faculty: data.faculty,
       description: data.description,
       meeting_location: data.meeting_location,
-      leader_id: currentUser ? currentUser.id : 2,
-      leader_name: currentUser ? currentUser.full_name : 'Baker Mugisa',
+      leader_id: currentUser ? currentUser.id : 1,
+      leader_name: currentUser ? currentUser.full_name : 'TUKAMUSHABA BAKER',
       member_count: 1
     };
     store.groups.unshift(newGroup);
@@ -230,19 +262,19 @@ function handleClientMockRequest(method, url, data) {
       store.memberships.push({ id: Date.now() + 1, user_id: currentUser.id, group_id: newId, role: 'leader' });
     }
     saveMockStore(store);
-    broadcastNotification('group_created', `📚 New study group "${data.name}" (${data.course_code.toUpperCase()}) was created by ${currentUser ? currentUser.full_name : 'a student'}!`, currentUser ? currentUser.full_name : '');
+    broadcastNotification('group_created', `📚 New study group "${data.name}" (${(data.course_code || '').toUpperCase()}) was created!`, currentUser ? currentUser.full_name : '');
     return { data: { success: true, groupId: newId, group: newGroup } };
   }
 
   // Members: Join
   if (cleanUrl.match(/^\/members\/\d+\/join$/) && method === 'post') {
-    const gId = parseInt(cleanUrl.split('/')[2], 10);
-    const exists = store.memberships.find(m => m.user_id === currentUser?.id && m.group_id === gId);
+    const gId = cleanUrl.split('/')[2];
+    const exists = store.memberships.find(m => String(m.user_id) === String(currentUser?.id) && String(m.group_id) === String(gId));
     if (exists) {
       return Promise.reject({ response: { status: 400, data: { message: 'You are already a member of this study group.' } } });
     }
-    store.memberships.push({ id: Date.now(), user_id: currentUser ? currentUser.id : 3, group_id: gId, role: 'member' });
-    const g = store.groups.find(x => x.id === gId);
+    store.memberships.push({ id: Date.now(), user_id: currentUser ? currentUser.id : 1, group_id: parseInt(gId, 10), role: 'member' });
+    const g = store.groups.find(x => String(x.id) === String(gId));
     if (g) g.member_count += 1;
     saveMockStore(store);
     broadcastNotification('member_joined', `👤 ${currentUser ? currentUser.full_name : 'A student'} joined the study group "${g ? g.name : ''}"!`, currentUser ? currentUser.full_name : '');
@@ -251,9 +283,9 @@ function handleClientMockRequest(method, url, data) {
 
   // Members: Leave
   if (cleanUrl.match(/^\/members\/\d+\/leave$/) && method === 'post') {
-    const gId = parseInt(cleanUrl.split('/')[2], 10);
-    store.memberships = store.memberships.filter(m => !(m.user_id === currentUser?.id && m.group_id === gId));
-    const g = store.groups.find(x => x.id === gId);
+    const gId = cleanUrl.split('/')[2];
+    store.memberships = store.memberships.filter(m => !(String(m.user_id) === String(currentUser?.id) && String(m.group_id) === String(gId)));
+    const g = store.groups.find(x => String(x.id) === String(gId));
     if (g && g.member_count > 1) g.member_count -= 1;
     saveMockStore(store);
     return { data: { success: true, message: 'Left study group.' } };
@@ -261,10 +293,10 @@ function handleClientMockRequest(method, url, data) {
 
   // Members: List for group
   if (cleanUrl.match(/^\/members\/\d+\/members$/) && method === 'get') {
-    const gId = parseInt(cleanUrl.split('/')[2], 10);
-    const mems = store.memberships.filter(m => m.group_id === gId);
+    const gId = cleanUrl.split('/')[2];
+    const mems = store.memberships.filter(m => String(m.group_id) === String(gId));
     const result = mems.map(m => {
-      const u = store.users.find(x => x.id === m.user_id);
+      const u = store.users.find(x => String(x.id) === String(m.user_id));
       return {
         id: m.id,
         user_id: m.user_id,
@@ -285,8 +317,8 @@ function handleClientMockRequest(method, url, data) {
 
   // Sessions: Group sessions
   if (cleanUrl.match(/^\/sessions\/group\/\d+$/) && method === 'get') {
-    const gId = parseInt(cleanUrl.split('/')[3], 10);
-    const list = store.sessions.filter(s => s.group_id === gId);
+    const gId = cleanUrl.split('/')[3];
+    const list = store.sessions.filter(s => String(s.group_id) === String(gId));
     return { data: { success: true, count: list.length, sessions: list } };
   }
 
@@ -300,19 +332,19 @@ function handleClientMockRequest(method, url, data) {
       session_time: data.session_time,
       location: data.location,
       description: data.description,
-      created_by: currentUser ? currentUser.id : 2,
-      created_by_name: currentUser ? currentUser.full_name : 'Baker Mugisa'
+      created_by: currentUser ? currentUser.id : 1,
+      created_by_name: currentUser ? currentUser.full_name : 'TUKAMUSHABA BAKER'
     };
     store.sessions.push(newSession);
     saveMockStore(store);
-    broadcastNotification('session_created', `📅 New study session "${data.title}" scheduled for ${data.session_date} by ${currentUser ? currentUser.full_name : 'a student'}!`, currentUser ? currentUser.full_name : '');
+    broadcastNotification('session_created', `📅 New study session "${data.title}" scheduled for ${data.session_date}!`, currentUser ? currentUser.full_name : '');
     return { data: { success: true, message: 'Session scheduled!', sessionId: newSession.id } };
   }
 
   // Posts: Group posts
   if (cleanUrl.match(/^\/posts\/group\/\d+$/) && method === 'get') {
-    const gId = parseInt(cleanUrl.split('/')[3], 10);
-    const list = store.posts.filter(p => p.group_id === gId);
+    const gId = cleanUrl.split('/')[3];
+    const list = store.posts.filter(p => String(p.group_id) === String(gId));
     return { data: { success: true, count: list.length, posts: list } };
   }
 
@@ -321,7 +353,7 @@ function handleClientMockRequest(method, url, data) {
     const newPost = {
       id: Date.now(),
       group_id: parseInt(data.group_id, 10),
-      user_id: currentUser ? currentUser.id : 2,
+      user_id: currentUser ? currentUser.id : 1,
       title: data.title,
       content: data.content,
       post_type: data.post_type || 'discussion',
@@ -331,24 +363,24 @@ function handleClientMockRequest(method, url, data) {
     };
     store.posts.unshift(newPost);
     saveMockStore(store);
-    broadcastNotification('post_created', `💬 ${currentUser ? currentUser.full_name : 'A student'} posted "${data.title}" in a study group discussion!`, currentUser ? currentUser.full_name : '');
+    broadcastNotification('post_created', `💬 ${currentUser ? currentUser.full_name : 'A student'} posted "${data.title}"!`, currentUser ? currentUser.full_name : '');
     return { data: { success: true, message: 'Post created!', postId: newPost.id } };
   }
 
   // Comments: list
   if (cleanUrl.match(/^\/posts\/\d+\/comments$/) && method === 'get') {
-    const pId = parseInt(cleanUrl.split('/')[2], 10);
-    const list = store.comments.filter(c => c.post_id === pId);
+    const pId = cleanUrl.split('/')[2];
+    const list = store.comments.filter(c => String(c.post_id) === String(pId));
     return { data: { success: true, count: list.length, comments: list } };
   }
 
   // Comments: create
   if (cleanUrl.match(/^\/posts\/\d+\/comments$/) && method === 'post') {
-    const pId = parseInt(cleanUrl.split('/')[2], 10);
+    const pId = cleanUrl.split('/')[2];
     const newComm = {
       id: Date.now(),
-      post_id: pId,
-      user_id: currentUser ? currentUser.id : 2,
+      post_id: parseInt(pId, 10),
+      user_id: currentUser ? currentUser.id : 1,
       author_name: currentUser ? currentUser.full_name : 'Student',
       content: data.content,
       created_at: new Date().toISOString()
@@ -360,7 +392,6 @@ function handleClientMockRequest(method, url, data) {
 
   // Admin Stats
   if (cleanUrl === '/admin/stats' && method === 'get') {
-    // Dynamically compute active courses from actual groups
     const courseCounts = {};
     store.groups.forEach(g => {
       courseCounts[g.course_code] = (courseCounts[g.course_code] || 0) + 1;
@@ -392,15 +423,15 @@ function handleClientMockRequest(method, url, data) {
   // Admin Users: Create directly from Admin Dashboard
   if (cleanUrl === '/admin/users' && method === 'post') {
     const { full_name, email, password, programme, year_of_study, role } = data;
-    const existing = store.users.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+    const existing = store.users.find(u => (u.email || '').toLowerCase() === String(email).trim().toLowerCase());
     if (existing) {
       return Promise.reject({ response: { status: 400, data: { success: false, message: 'A user with this email already exists.' } } });
     }
     const newId = Date.now();
     const newUser = {
       id: newId,
-      full_name,
-      email,
+      full_name: String(full_name).trim(),
+      email: String(email).trim().toLowerCase(),
       password: password || 'Password123!',
       programme: programme || 'Bachelor of Science in Information Technology',
       year_of_study: parseInt(year_of_study, 10) || 1,
@@ -409,14 +440,20 @@ function handleClientMockRequest(method, url, data) {
     };
     store.users.unshift(newUser);
     saveMockStore(store);
-    broadcastNotification('user_registered', `📝 Student "${full_name}" registered and added to directory!`, full_name);
+
+    broadcastNotification(
+      'user_registered',
+      `👤 New student registered: ${newUser.full_name} (${newUser.email}) - Added to All Registered Users`,
+      newUser.full_name
+    );
+
     return { data: { success: true, message: 'User created successfully!', user: newUser } };
   }
 
   // Admin: Update user role
-  if (cleanUrl.match(/^\/admin\/users\/\d+\/role$/) && method === 'put') {
-    const uId = parseInt(cleanUrl.split('/')[3], 10);
-    const u = store.users.find(x => x.id === uId);
+  if (cleanUrl.startsWith('/admin/users/') && cleanUrl.endsWith('/role') && method === 'put') {
+    const uId = cleanUrl.split('/')[3];
+    const u = store.users.find(x => String(x.id) === String(uId));
     if (u) {
       u.role = data.role;
       saveMockStore(store);
@@ -425,21 +462,30 @@ function handleClientMockRequest(method, url, data) {
   }
 
   // Admin: Delete user
-  if (cleanUrl.match(/^\/admin\/users\/\d+$/) && method === 'delete') {
-    const uId = parseInt(cleanUrl.split('/')[3], 10);
-    store.users = store.users.filter(x => x.id !== uId);
-    store.memberships = store.memberships.filter(m => m.user_id !== uId);
+  if (cleanUrl.startsWith('/admin/users/') && !cleanUrl.endsWith('/role') && method === 'delete') {
+    const uId = cleanUrl.split('/')[3];
+    // Protect primary admin from deletion
+    store.users = store.users.filter(x => {
+      if (String(x.id) === String(uId)) {
+        if ((x.email || '').toLowerCase() === PRIMARY_ADMIN.email.toLowerCase()) {
+          return true; // Protected primary admin cannot be deleted
+        }
+        return false;
+      }
+      return true;
+    });
+    store.memberships = store.memberships.filter(m => String(m.user_id) !== String(uId));
     saveMockStore(store);
-    return { data: { success: true, message: 'User deleted.' } };
+    return { data: { success: true, message: 'User deleted successfully.' } };
   }
 
   // Delete group (admin)
   if (cleanUrl.match(/^\/groups\/\d+$/) && method === 'delete') {
-    const gId = parseInt(cleanUrl.split('/')[2], 10);
-    store.groups = store.groups.filter(x => x.id !== gId);
-    store.memberships = store.memberships.filter(m => m.group_id !== gId);
-    store.sessions = store.sessions.filter(s => s.group_id !== gId);
-    store.posts = store.posts.filter(p => p.group_id !== gId);
+    const gId = cleanUrl.split('/')[2];
+    store.groups = store.groups.filter(x => String(x.id) !== String(gId));
+    store.memberships = store.memberships.filter(m => String(m.group_id) !== String(gId));
+    store.sessions = store.sessions.filter(s => String(s.group_id) !== String(gId));
+    store.posts = store.posts.filter(p => String(p.group_id) !== String(gId));
     saveMockStore(store);
     return { data: { success: true, message: 'Group deleted.' } };
   }

@@ -28,7 +28,9 @@ const LoginPage = () => {
     try {
       const res = await login(email, password);
       if (res.success) {
-        navigate(from, { replace: true });
+        // Automatically direct System Administrator straight to Admin Control Center
+        const destination = res.user?.role === 'admin' ? '/admin' : from;
+        navigate(destination, { replace: true });
       } else {
         setError(res.message || 'Invalid email or password.');
       }

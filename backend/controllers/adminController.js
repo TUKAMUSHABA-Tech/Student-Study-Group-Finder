@@ -81,6 +81,51 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
+// Create a new student/user directly from admin dashboard
+exports.createUser = async (req, res) => {
+  try {
+    const { full_name, email, password, programme, year_of_study, role } = req.body;
+
+    if (!full_name || !email || !password) {
+      return res.status(400).json({ success: false, message: 'Full name, email, and password are required.' });
+    }
+
+    const existingUsers = await db.query('SELECT id FROM users WHERE email = ?', [email.trim().toLowerCase()]);
+    if (existingUsers.length > 0) {
+      return res.status(409).json({ success: false, message: 'A user with this email address already exists.' });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const assignedRole = role && ['student', 'leader', 'admin'].includes(role) ? role : 'student';
+    const year = parseInt(year_of_study, 10) || 1;
+
+    const result = await db.query(
+      'INSERT INTO users (full_name, email, password, programme, year_of_study, role) VALUES (?, ?, ?, ?, ?, ?)',
+      [full_name.trim(), email.trim().toLowerCase(), hashedPassword, (programme || 'General Studies').trim(), year, assignedRole]
+    );
+
+    const newUser = {
+      id: result.insertId,
+      full_name: full_name.trim(),
+      email: email.trim().toLowerCase(),
+      programme: (programme || 'General Studies').trim(),
+      year_of_study: year,
+      role: assignedRole,
+      created_at: new Date().toISOString()
+    };
+
+    return res.status(201).json({
+      success: true,
+      message: 'New user registered and added to directory successfully!',
+      user: newUser
+    });
+  } catch (error) {
+    console.error('Admin createUser error:', error);
+    return res.status(500).json({ success: false, message: 'Server error creating user.' });
+  }
+};
+
 // Update user role (e.g. promote to leader or admin)
 exports.updateUserRole = async (req, res) => {
   try {

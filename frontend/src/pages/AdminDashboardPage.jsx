@@ -3,7 +3,7 @@ import api from '../services/api';
 import { useNotifications } from '../context/NotificationContext';
 import { 
   ShieldAlert, Users, BookOpen, Layers, Calendar, TrendingUp, 
-  Trash2, RefreshCw
+  Trash2, RefreshCw, UserPlus, Search, X, CheckCircle2, AlertCircle
 } from 'lucide-react';
 
 const AdminDashboardPage = () => {
@@ -12,6 +12,18 @@ const AdminDashboardPage = () => {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState({ message: '', type: '' });
+  const [userSearch, setUserSearch] = useState('');
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [addingUser, setAddingUser] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({
+    full_name: '',
+    email: '',
+    password: 'Password123!',
+    programme: 'Bachelor of Science in Information Technology',
+    year_of_study: '1',
+    role: 'student'
+  });
+
   const { notifications } = useNotifications();
 
   const loadAdminData = useCallback(async () => {
@@ -21,9 +33,13 @@ const AdminDashboardPage = () => {
         api.get('/admin/users'),
         api.get('/groups')
       ]);
-      if (statsRes.data.success) setStats(statsRes.data.stats);
-      if (usersRes.data.success) setUsers(usersRes.data.users);
-      if (groupsRes.data.success) setGroups(groupsRes.data.groups);
+      if (statsRes.data?.success) setStats(statsRes.data.stats);
+      if (usersRes.data?.success && Array.isArray(usersRes.data.users)) {
+        setUsers(usersRes.data.users);
+      }
+      if (groupsRes.data?.success && Array.isArray(groupsRes.data.groups)) {
+        setGroups(groupsRes.data.groups);
+      }
     } catch (err) {
       console.error('Failed to load admin data:', err);
     } finally {
@@ -31,17 +47,37 @@ const AdminDashboardPage = () => {
     }
   }, []);
 
+  // Initial load
   useEffect(() => { loadAdminData(); }, [loadAdminData]);
 
-  // Poll every 5 seconds for new registrations — catches users registered from any tab/device
+  // Real-time synchronization: poll every 3 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       loadAdminData();
-    }, 5000);
+    }, 3000);
     return () => clearInterval(interval);
   }, [loadAdminData]);
 
-  // Also refresh immediately whenever a notification fires (instant feedback)
+  // Cross-tab and in-memory event listeners
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (!e.key || e.key.includes('ucu_gh_pages_store') || e.key.includes('ucu_notifications')) {
+        loadAdminData();
+      }
+    };
+    const handleCustomUpdate = () => {
+      loadAdminData();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('ucu_store_updated', handleCustomUpdate);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('ucu_store_updated', handleCustomUpdate);
+    };
+  }, [loadAdminData]);
+
+  // Auto-refresh when notification count changes
   useEffect(() => {
     if (notifications.length > 0) loadAdminData();
   }, [notifications.length, loadAdminData]);
@@ -89,6 +125,51 @@ const AdminDashboardPage = () => {
     }
   };
 
+  const handleAddUserSubmit = async (e) => {
+    e.preventDefault();
+    if (!newUserForm.full_name || !newUserForm.email || !newUserForm.password) {
+      alert('Please fill in student name, email, and password.');
+      return;
+    }
+
+    setAddingUser(true);
+    try {
+      const res = await api.post('/admin/users', newUserForm);
+      if (res.data?.success) {
+        setFeedback({ message: `✅ Student "${newUserForm.full_name}" registered and added to directory successfully!`, type: 'success' });
+        setShowAddUserModal(false);
+        setNewUserForm({
+          full_name: '',
+          email: '',
+          password: 'Password123!',
+          programme: 'Bachelor of Science in Information Technology',
+          year_of_study: '1',
+          role: 'student'
+        });
+        loadAdminData();
+        setTimeout(() => setFeedback({ message: '', type: '' }), 4000);
+      } else {
+        alert(res.data?.message || 'Failed to create user.');
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Error creating user account.');
+    } finally {
+      setAddingUser(false);
+    }
+  };
+
+  // Filter users by search term
+  const filteredUsers = users.filter(u => {
+    if (!userSearch) return true;
+    const term = userSearch.toLowerCase();
+    return (
+      (u.full_name && u.full_name.toLowerCase().includes(term)) ||
+      (u.email && u.email.toLowerCase().includes(term)) ||
+      (u.programme && u.programme.toLowerCase().includes(term)) ||
+      (u.role && u.role.toLowerCase().includes(term))
+    );
+  });
+
   if (loading) return <div style={{ padding: '3rem', textAlign: 'center' }}>Loading Administrator Dashboard...</div>;
 
   return (
@@ -100,29 +181,47 @@ const AdminDashboardPage = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#DC2626', marginBottom: '0.25rem' }}>
               <ShieldAlert size={20} />
               <span style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                System Administrator
+                System Administrator Control Center
               </span>
             </div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--ucu-primary-dark)' }}>
               Platform Analytics & User Management
             </h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-              All registered users appear here automatically. Manage accounts, roles, and moderate study groups.
+              Manage all registered university student accounts, assign leadership roles, and supervise campus study pods.
             </p>
           </div>
-          <button onClick={() => { setLoading(true); loadAdminData(); }} className="btn btn-sm btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <RefreshCw size={14} /> Refresh
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setShowAddUserModal(true)}
+              className="btn btn-sm btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <UserPlus size={15} /> ➕ Register New Student
+            </button>
+            <button
+              onClick={() => { setLoading(true); loadAdminData(); }}
+              className="btn btn-sm btn-outline"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <RefreshCw size={14} /> Refresh Data
+            </button>
+          </div>
         </div>
       </div>
 
-      {feedback.message && <div className={`alert alert-${feedback.type}`}>{feedback.message}</div>}
+      {feedback.message && (
+        <div className={`alert alert-${feedback.type}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {feedback.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+          <span>{feedback.message}</span>
+        </div>
+      )}
 
       {/* Metrics Grid */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon-box" style={{ background: '#EFF6FF', color: '#2563EB' }}><Users size={24} /></div>
-          <div><div className="stat-value">{stats?.totalUsers || users.length}</div><div className="stat-label">Total Users</div></div>
+          <div><div className="stat-value">{stats?.totalUsers || users.length}</div><div className="stat-label">Total Registered Students</div></div>
         </div>
         <div className="stat-card">
           <div className="stat-icon-box" style={{ background: '#ECFDF5', color: '#059669' }}><BookOpen size={24} /></div>
@@ -130,79 +229,202 @@ const AdminDashboardPage = () => {
         </div>
         <div className="stat-card">
           <div className="stat-icon-box" style={{ background: '#FFFBEB', color: '#D97706' }}><Layers size={24} /></div>
-          <div><div className="stat-value">{stats?.totalMemberships || 0}</div><div className="stat-label">Memberships</div></div>
+          <div><div className="stat-value">{stats?.totalMemberships || 0}</div><div className="stat-label">Group Memberships</div></div>
         </div>
         <div className="stat-card">
           <div className="stat-icon-box" style={{ background: '#F3E8FF', color: '#9333EA' }}><Calendar size={24} /></div>
-          <div><div className="stat-value">{stats?.totalSessions || 0}</div><div className="stat-label">Sessions</div></div>
+          <div><div className="stat-value">{stats?.totalSessions || 0}</div><div className="stat-label">Scheduled Sessions</div></div>
         </div>
       </div>
 
-      {/* Active Courses */}
-      {(stats?.activeCourses || []).length > 0 && (
-        <div className="card" style={{ marginBottom: '2rem' }}>
-          <div className="card-header">
-            <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <TrendingUp size={20} color="var(--ucu-primary)" /> Active Courses
-            </h2>
+      {/* Modal / Card to Register New Student directly */}
+      {showAddUserModal && (
+        <div className="card" style={{ marginBottom: '2rem', border: '2px solid var(--ucu-primary)', background: '#F8FAFC' }}>
+          <div className="card-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--ucu-primary-dark)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <UserPlus size={18} color="var(--ucu-primary)" /> Register & Add New Student Directly
+            </h3>
+            <button
+              onClick={() => setShowAddUserModal(false)}
+              className="btn btn-sm btn-outline"
+              style={{ padding: '0.2rem 0.5rem' }}
+            >
+              <X size={16} />
+            </button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
-            {stats.activeCourses.map((c, i) => (
-              <div key={i} style={{ padding: '0.85rem', background: '#F8FAFC', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                <span className="badge badge-course">{c.course_code}</span>
-                <div style={{ marginTop: '0.4rem', fontSize: '1.15rem', fontWeight: 700, color: 'var(--ucu-primary-dark)' }}>
-                  {c.group_count} {c.group_count === 1 ? 'Group' : 'Groups'}
-                </div>
+          <form onSubmit={handleAddUserSubmit} style={{ marginTop: '1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Full Name *</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. Samuel Mugisha"
+                  value={newUserForm.full_name}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, full_name: e.target.value })}
+                  required
+                />
               </div>
-            ))}
-          </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>University Email *</label>
+                <input
+                  type="email"
+                  className="form-control"
+                  placeholder="e.g. samuel@ucu.ac.ug"
+                  value={newUserForm.email}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Password *</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter initial password"
+                  value={newUserForm.password}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Programme of Study</label>
+                <select
+                  className="form-control"
+                  value={newUserForm.programme}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, programme: e.target.value })}
+                >
+                  <option value="Bachelor of Science in Information Technology">Bachelor of Science in Information Technology</option>
+                  <option value="Bachelor of Science in Computer Science">Bachelor of Science in Computer Science</option>
+                  <option value="Bachelor of Science in Data Science">Bachelor of Science in Data Science</option>
+                  <option value="Bachelor of Business Administration">Bachelor of Business Administration</option>
+                  <option value="Bachelor of Laws">Bachelor of Laws</option>
+                  <option value="Bachelor of Nursing Science">Bachelor of Nursing Science</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Year of Study</label>
+                <select
+                  className="form-control"
+                  value={newUserForm.year_of_study}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, year_of_study: e.target.value })}
+                >
+                  <option value="1">Year 1</option>
+                  <option value="2">Year 2</option>
+                  <option value="3">Year 3</option>
+                  <option value="4">Year 4</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '0.85rem' }}>Assigned Role</label>
+                <select
+                  className="form-control"
+                  value={newUserForm.role}
+                  onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value })}
+                >
+                  <option value="student">student (Standard member)</option>
+                  <option value="leader">leader (Group creator / leader)</option>
+                  <option value="admin">admin (Platform moderator)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowAddUserModal(false)}
+                className="btn btn-outline"
+                style={{ background: '#FFFFFF' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={addingUser}
+              >
+                {addingUser ? 'Registering...' : 'Save & Register Student'}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
-      {/* ============ ALL REGISTERED USERS ============ */}
+      {/* ============ ALL REGISTERED USERS DIRECTORY ============ */}
       <div className="card" style={{ marginBottom: '2rem' }}>
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-          <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Users size={20} color="var(--ucu-primary)" /> All Registered Users ({users.length})
-          </h2>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: '#EFF6FF', padding: '0.2rem 0.6rem', borderRadius: '9999px' }}>
-            🔄 Auto-refreshes on new registrations
-          </span>
+        <div className="card-header" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Users size={20} color="var(--ucu-primary)" /> All Registered Users ({filteredUsers.length}{filteredUsers.length !== users.length ? ` of ${users.length}` : ''})
+            </h2>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              🔄 Real-time synchronized directory of all university members
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', minWidth: '220px' }}>
+              <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Search user by name, email..."
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                style={{ paddingLeft: '30px', fontSize: '0.85rem', height: '34px' }}
+              />
+            </div>
+            <button
+              onClick={() => setShowAddUserModal(true)}
+              className="btn btn-sm btn-accent"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', height: '34px' }}
+            >
+              <UserPlus size={14} /> Add User
+            </button>
+          </div>
         </div>
 
-        {users.length === 0 ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-            <Users size={36} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
-            <p>No users registered yet.</p>
+        {filteredUsers.length === 0 ? (
+          <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+            <Users size={40} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
+            <p style={{ fontWeight: 600 }}>No users found matching your search.</p>
+            <p style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+              Click <strong>"Add User"</strong> above to register a student directly into the platform!
+            </p>
           </div>
         ) : (
           <div className="table-responsive">
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>User</th>
-                  <th className="hide-mobile">Email</th>
-                  <th className="hide-mobile">Programme</th>
+                  <th>Student Account</th>
+                  <th className="hide-mobile">University Email</th>
+                  <th className="hide-mobile">Degree Programme</th>
                   <th className="hide-mobile">Year</th>
-                  <th>Role</th>
+                  <th>System Role</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
+                {filteredUsers.map((u) => (
                   <tr key={u.id}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <div style={{
-                          width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0,
+                          width: '34px', height: '34px', borderRadius: '50%', flexShrink: 0,
                           background: u.role === 'admin' ? '#FEF2F2' : u.role === 'leader' ? '#F3E8FF' : '#EFF6FF',
                           color: u.role === 'admin' ? '#DC2626' : u.role === 'leader' ? '#9333EA' : '#2563EB',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem'
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem'
                         }}>
                           {u.full_name ? u.full_name[0].toUpperCase() : 'U'}
                         </div>
                         <div>
-                          <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{u.full_name}</div>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--ucu-primary-dark)' }}>{u.full_name}</div>
                           <div className="show-mobile-only" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{u.email}</div>
                           <div className="show-mobile-only" style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{u.programme || '-'}</div>
                         </div>
@@ -210,9 +432,14 @@ const AdminDashboardPage = () => {
                     </td>
                     <td className="hide-mobile" style={{ fontSize: '0.85rem' }}>{u.email}</td>
                     <td className="hide-mobile" style={{ fontSize: '0.85rem' }}>{u.programme || '-'}</td>
-                    <td className="hide-mobile">Yr {u.year_of_study || 1}</td>
+                    <td className="hide-mobile">Year {u.year_of_study || 1}</td>
                     <td>
-                      <select className="form-control" style={{ padding: '0.2rem 0.35rem', fontSize: '0.78rem', width: 'auto', minWidth: '78px' }} value={u.role} onChange={(e) => handleRoleChange(u.id, e.target.value)}>
+                      <select
+                        className="form-control"
+                        style={{ padding: '0.25rem 0.45rem', fontSize: '0.8rem', width: 'auto', minWidth: '85px' }}
+                        value={u.role}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                      >
                         <option value="student">student</option>
                         <option value="leader">leader</option>
                         <option value="admin">admin</option>
@@ -220,11 +447,18 @@ const AdminDashboardPage = () => {
                     </td>
                     <td>
                       {u.role !== 'admin' ? (
-                        <button onClick={() => handleDeleteUser(u.id)} className="btn btn-sm btn-outline" style={{ color: 'var(--danger)', padding: '0.2rem 0.4rem' }} title="Delete User">
+                        <button
+                          onClick={() => handleDeleteUser(u.id)}
+                          className="btn btn-sm btn-outline"
+                          style={{ color: 'var(--danger)', padding: '0.2rem 0.5rem' }}
+                          title="Delete User"
+                        >
                           <Trash2 size={14} />
                         </button>
                       ) : (
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Protected</span>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600, background: '#F1F5F9', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
+                          Primary Admin
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -235,15 +469,15 @@ const AdminDashboardPage = () => {
         )}
       </div>
 
-      {/* ============ STUDY GROUPS ============ */}
+      {/* ============ STUDY GROUPS MODERATION TABLE ============ */}
       <div className="card">
         <div className="card-header">
           <h2 className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <BookOpen size={20} color="var(--ucu-primary)" /> Study Groups ({groups.length})
+            <BookOpen size={20} color="var(--ucu-primary)" /> Campus Study Groups ({groups.length})
           </h2>
         </div>
         {groups.length === 0 ? (
-          <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+          <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
             <BookOpen size={36} style={{ opacity: 0.3, marginBottom: '0.75rem' }} />
             <p>No study groups created yet.</p>
           </div>
@@ -252,11 +486,11 @@ const AdminDashboardPage = () => {
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Group</th>
-                  <th>Course</th>
+                  <th>Group Name</th>
+                  <th>Course Code</th>
                   <th className="hide-mobile">Faculty</th>
-                  <th className="hide-mobile">Leader</th>
-                  <th className="hide-mobile">Members</th>
+                  <th className="hide-mobile">Group Leader</th>
+                  <th className="hide-mobile">Enrolled</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -267,10 +501,15 @@ const AdminDashboardPage = () => {
                     <td><span className="badge badge-course">{g.course_code}</span></td>
                     <td className="hide-mobile" style={{ fontSize: '0.85rem' }}>{g.faculty}</td>
                     <td className="hide-mobile">{g.leader_name}</td>
-                    <td className="hide-mobile">{g.member_count}</td>
+                    <td className="hide-mobile">{g.member_count} members</td>
                     <td>
-                      <button onClick={() => handleDeleteGroup(g.id)} className="btn btn-sm btn-outline" style={{ color: 'var(--danger)', padding: '0.2rem 0.4rem' }} title="Delete Group">
-                        <Trash2 size={14} />
+                      <button
+                        onClick={() => handleDeleteGroup(g.id)}
+                        className="btn btn-sm btn-outline"
+                        style={{ color: 'var(--danger)', padding: '0.2rem 0.5rem' }}
+                        title="Delete Group"
+                      >
+                        <Trash2 size={14} /> Delete
                       </button>
                     </td>
                   </tr>

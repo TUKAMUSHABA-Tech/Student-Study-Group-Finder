@@ -22,20 +22,62 @@ const initialMockStore = {
 };
 
 function getMockStore() {
+  let store = null;
   const data = localStorage.getItem('ucu_gh_pages_store_v4');
   if (data) {
     try {
-      return JSON.parse(data);
+      store = JSON.parse(data);
     } catch (e) {
       // fallback
     }
   }
-  localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(initialMockStore));
-  return JSON.parse(JSON.stringify(initialMockStore));
+
+  // Recover any users or groups from prior versions if missing
+  if (!store) {
+    store = JSON.parse(JSON.stringify(initialMockStore));
+  }
+
+  // Consolidate users from any previous keys (v3, v2, v1)
+  const previousKeys = ['ucu_gh_pages_store_v3', 'ucu_gh_pages_store_v2', 'ucu_gh_pages_store'];
+  const userMap = new Map();
+
+  // Master admin must always be guaranteed
+  initialMockStore.users.forEach(u => userMap.set(u.email.toLowerCase(), u));
+
+  // Add existing store users
+  (store.users || []).forEach(u => userMap.set(u.email.toLowerCase(), u));
+
+  // Merge any older keys
+  previousKeys.forEach(k => {
+    try {
+      const oldRaw = localStorage.getItem(k);
+      if (oldRaw) {
+        const oldParsed = JSON.parse(oldRaw);
+        if (oldParsed.users && Array.isArray(oldParsed.users)) {
+          oldParsed.users.forEach(u => {
+            if (!userMap.has(u.email.toLowerCase())) {
+              userMap.set(u.email.toLowerCase(), u);
+            }
+          });
+        }
+      }
+    } catch (err) {}
+  });
+
+  store.users = Array.from(userMap.values());
+  localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
+  return store;
 }
 
 function saveMockStore(store) {
-  localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
+  try {
+    localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('ucu_store_updated', { detail: store }));
+    }
+  } catch (e) {
+    console.error('saveMockStore error:', e);
+  }
 }
 
 // Check if running on GitHub Pages or static host
@@ -342,9 +384,33 @@ function handleClientMockRequest(method, url, data) {
     };
   }
 
-  // Admin Users
+  // Admin Users: List
   if (cleanUrl === '/admin/users' && method === 'get') {
     return { data: { success: true, count: store.users.length, users: store.users } };
+  }
+
+  // Admin Users: Create directly from Admin Dashboard
+  if (cleanUrl === '/admin/users' && method === 'post') {
+    const { full_name, email, password, programme, year_of_study, role } = data;
+    const existing = store.users.find(u => u.email.toLowerCase() === String(email).toLowerCase());
+    if (existing) {
+      return Promise.reject({ response: { status: 400, data: { success: false, message: 'A user with this email already exists.' } } });
+    }
+    const newId = Date.now();
+    const newUser = {
+      id: newId,
+      full_name,
+      email,
+      password: password || 'Password123!',
+      programme: programme || 'Bachelor of Science in Information Technology',
+      year_of_study: parseInt(year_of_study, 10) || 1,
+      role: role || 'student',
+      created_at: new Date().toISOString()
+    };
+    store.users.unshift(newUser);
+    saveMockStore(store);
+    broadcastNotification('user_registered', `📝 Student "${full_name}" registered and added to directory!`, full_name);
+    return { data: { success: true, message: 'User created successfully!', user: newUser } };
   }
 
   // Admin: Update user role

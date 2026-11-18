@@ -11,11 +11,12 @@ import {
   ArrowRight, 
   Clock, 
   MapPin, 
-  Bell 
+  Bell,
+  ShieldAlert 
 } from 'lucide-react';
 
 const DashboardPage = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [myGroups, setMyGroups] = useState([]);
   const [upcomingSessions, setUpcomingSessions] = useState([]);
   const [recentGroups, setRecentGroups] = useState([]);
@@ -49,6 +50,51 @@ const DashboardPage = () => {
 
   return (
     <div>
+      {/* Administrator Direct Access Banner */}
+      {isAdmin && (
+        <div style={{
+          background: 'linear-gradient(135deg, #DC2626 0%, #991B1B 100%)',
+          color: '#FFFFFF',
+          padding: '1.1rem 1.5rem',
+          borderRadius: 'var(--radius-md)',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem',
+          boxShadow: '0 4px 14px rgba(220, 38, 38, 0.25)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ background: 'rgba(255,255,255,0.2)', padding: '0.6rem', borderRadius: '50%', display: 'flex' }}>
+              <ShieldAlert size={24} color="#FFFFFF" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '1.05rem', letterSpacing: '0.3px' }}>
+                System Administrator Access Active
+              </div>
+              <div style={{ fontSize: '0.85rem', color: '#FEE2E2', marginTop: '2px' }}>
+                You have master supervisory access to view all registered student accounts, manage roles, and moderate groups.
+              </div>
+            </div>
+          </div>
+          <Link
+            to="/admin"
+            className="btn btn-sm"
+            style={{
+              background: '#FFFFFF',
+              color: '#DC2626',
+              fontWeight: 700,
+              padding: '0.55rem 1.15rem',
+              borderRadius: 'var(--radius-sm)',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+            }}
+          >
+            Open All Registered Users Panel →
+          </Link>
+        </div>
+      )}
+
       {/* Welcome Banner */}
       <div style={{
         background: 'linear-gradient(135deg, var(--ucu-primary) 0%, var(--ucu-primary-dark) 100%)',

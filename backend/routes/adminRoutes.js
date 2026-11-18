@@ -9,6 +9,7 @@ router.use(requireRoles(['admin']));
 
 router.get('/stats', adminController.getStats);
 router.get('/users', adminController.getAllUsers);
+router.post('/users', adminController.createUser);
 router.put('/users/:id/role', adminController.updateUserRole);
 router.delete('/users/:id', adminController.deleteUser);
 

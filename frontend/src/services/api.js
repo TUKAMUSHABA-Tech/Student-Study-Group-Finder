@@ -22,7 +22,7 @@ const initialMockStore = {
 };
 
 function getMockStore() {
-  const data = localStorage.getItem('ucu_gh_pages_store_v3');
+  const data = localStorage.getItem('ucu_gh_pages_store_v4');
   if (data) {
     try {
       return JSON.parse(data);
@@ -30,12 +30,12 @@ function getMockStore() {
       // fallback
     }
   }
-  localStorage.setItem('ucu_gh_pages_store_v3', JSON.stringify(initialMockStore));
+  localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(initialMockStore));
   return JSON.parse(JSON.stringify(initialMockStore));
 }
 
 function saveMockStore(store) {
-  localStorage.setItem('ucu_gh_pages_store_v3', JSON.stringify(store));
+  localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
 }
 
 // Check if running on GitHub Pages or static host

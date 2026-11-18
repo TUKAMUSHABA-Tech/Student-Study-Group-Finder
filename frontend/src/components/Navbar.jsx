@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
-import { GraduationCap, LogOut, Bell, Shield, Users, BookOpen, Calendar, MessageSquare, CheckCheck } from 'lucide-react';
+import { GraduationCap, LogOut, Bell, Shield, Users, BookOpen, Calendar, MessageSquare, CheckCheck, Menu, X } from 'lucide-react';
 
 const notifIcon = (type) => {
   if (type === 'group_created') return <BookOpen size={14} color="#2563EB" />;
@@ -25,13 +25,16 @@ const Navbar = () => {
   const { user, isAuthenticated, logout, isAdmin } = useAuth();
   const { notifications, unreadCount, markAllRead } = useNotifications();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showNotifs, setShowNotifs] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const bellRef = useRef(null);
 
   const count = unreadCount(user?.id);
 
   const handleLogout = () => {
     logout();
+    setMobileMenuOpen(false);
     navigate('/login');
   };
 
@@ -53,6 +56,11 @@ const Navbar = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   return (
     <header className="navbar">
       {/* Brand */}
@@ -69,87 +77,26 @@ const Navbar = () => {
       </Link>
 
       {/* Right side controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: 'auto' }}>
+      <div className="navbar-right">
         {isAuthenticated ? (
           <>
             {/* Notification Bell */}
             <div ref={bellRef} style={{ position: 'relative' }}>
-              <button
-                onClick={handleBellClick}
-                title="Notifications"
-                style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '38px',
-                  height: '38px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: '#FFFFFF',
-                  position: 'relative',
-                  transition: 'background 0.2s'
-                }}
-              >
+              <button onClick={handleBellClick} title="Notifications" className="navbar-bell-btn">
                 <Bell size={19} />
                 {count > 0 && (
-                  <span style={{
-                    position: 'absolute',
-                    top: '2px',
-                    right: '2px',
-                    background: '#EF4444',
-                    color: '#FFFFFF',
-                    borderRadius: '9999px',
-                    fontSize: '0.6rem',
-                    fontWeight: 800,
-                    minWidth: '16px',
-                    height: '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '0 3px',
-                    lineHeight: 1,
-                    animation: 'pulse 1.5s infinite'
-                  }}>
-                    {count > 9 ? '9+' : count}
-                  </span>
+                  <span className="navbar-bell-badge">{count > 9 ? '9+' : count}</span>
                 )}
               </button>
 
               {/* Notification Dropdown */}
               {showNotifs && (
-                <div style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: '46px',
-                  width: '340px',
-                  background: '#FFFFFF',
-                  borderRadius: '12px',
-                  boxShadow: '0 20px 40px rgba(0,0,0,0.18)',
-                  zIndex: 9999,
-                  overflow: 'hidden',
-                  border: '1px solid var(--border-color)'
-                }}>
-                  {/* Header */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0.9rem 1rem',
-                    borderBottom: '1px solid var(--border-color)',
-                    background: '#F8FAFC'
-                  }}>
-                    <span style={{ fontWeight: 700, color: 'var(--ucu-primary-dark)', fontSize: '0.95rem' }}>
-                      🔔 Notifications
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      {notifications.length} total
-                    </span>
+                <div className="notif-dropdown">
+                  <div className="notif-header">
+                    <span style={{ fontWeight: 700, color: 'var(--ucu-primary-dark)', fontSize: '0.95rem' }}>🔔 Notifications</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{notifications.length} total</span>
                   </div>
-
-                  {/* Notification List */}
-                  <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+                  <div className="notif-list">
                     {notifications.length === 0 ? (
                       <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                         <Bell size={28} style={{ opacity: 0.3, marginBottom: '0.5rem' }} />
@@ -160,73 +107,26 @@ const Navbar = () => {
                         const isUnread = !n.readBy.includes(user?.id);
                         return (
                           <div key={n.id} style={{
-                            display: 'flex',
-                            gap: '0.75rem',
-                            padding: '0.8rem 1rem',
-                            borderBottom: '1px solid #F1F5F9',
-                            background: isUnread ? '#EFF6FF' : '#FFFFFF',
-                            transition: 'background 0.15s'
+                            display: 'flex', gap: '0.6rem', padding: '0.7rem 0.85rem',
+                            borderBottom: '1px solid #F1F5F9', background: isUnread ? '#EFF6FF' : '#FFFFFF'
                           }}>
-                            <div style={{
-                              width: '30px',
-                              height: '30px',
-                              borderRadius: '50%',
-                              background: '#F1F5F9',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0,
-                              marginTop: '2px'
-                            }}>
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                               {notifIcon(n.type)}
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: '0.83rem', color: 'var(--text-dark)', margin: 0, lineHeight: 1.4 }}>
-                                {n.message}
-                              </p>
-                              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                {timeAgo(n.timestamp)}
-                              </span>
+                              <p style={{ fontSize: '0.8rem', color: 'var(--text-dark)', margin: 0, lineHeight: 1.4 }}>{n.message}</p>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{timeAgo(n.timestamp)}</span>
                             </div>
-                            {isUnread && (
-                              <div style={{
-                                width: '8px',
-                                height: '8px',
-                                borderRadius: '50%',
-                                background: '#2563EB',
-                                marginTop: '8px',
-                                flexShrink: 0
-                              }} />
-                            )}
+                            {isUnread && <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#2563EB', marginTop: '6px', flexShrink: 0 }} />}
                           </div>
                         );
                       })
                     )}
                   </div>
-
-                  {/* Footer */}
                   {notifications.length > 0 && (
-                    <div style={{
-                      padding: '0.6rem 1rem',
-                      borderTop: '1px solid var(--border-color)',
-                      background: '#F8FAFC',
-                      display: 'flex',
-                      justifyContent: 'center'
-                    }}>
-                      <button
-                        onClick={() => { markAllRead(user?.id); setShowNotifs(false); }}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--ucu-primary)',
-                          fontWeight: 600,
-                          fontSize: '0.8rem',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.3rem'
-                        }}
-                      >
+                    <div className="notif-footer">
+                      <button onClick={() => { markAllRead(user?.id); setShowNotifs(false); }}
+                        style={{ background: 'none', border: 'none', color: 'var(--ucu-primary)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                         <CheckCheck size={14} /> Mark all as read
                       </button>
                     </div>
@@ -235,75 +135,69 @@ const Navbar = () => {
               )}
             </div>
 
-            {/* Admin badge */}
+            {/* Admin badge - desktop */}
             {isAdmin && (
-              <Link
-                to="/admin"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  background: 'rgba(239,68,68,0.15)',
-                  border: '1px solid rgba(239,68,68,0.3)',
-                  borderRadius: '6px',
-                  padding: '0.3rem 0.65rem',
-                  color: '#FCA5A5',
-                  fontSize: '0.78rem',
-                  fontWeight: 700,
-                  textDecoration: 'none'
-                }}
-                title="Admin Control Panel"
-              >
+              <Link to="/admin" className="navbar-admin-badge hide-on-mobile" title="Admin Control Panel">
                 <Shield size={13} /> Admin
               </Link>
             )}
 
-            {/* User Avatar + Name */}
-            <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#FFFFFF', textDecoration: 'none' }}>
-              <div style={{
-                width: '34px',
-                height: '34px',
-                borderRadius: '50%',
-                background: 'var(--ucu-primary-light)',
-                border: '2px solid var(--ucu-accent)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 700,
-                fontSize: '0.9rem'
-              }}>
-                {user.full_name ? user.full_name[0].toUpperCase() : 'U'}
-              </div>
+            {/* User Avatar + Name - desktop */}
+            <Link to="/profile" className="navbar-user-info hide-on-mobile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#FFFFFF', textDecoration: 'none' }}>
+              <div className="navbar-avatar">{user.full_name ? user.full_name[0].toUpperCase() : 'U'}</div>
               <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
                 <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{user.full_name.split(' ')[0]}</div>
-                <span className={`badge badge-${user.role}`} style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem' }}>
-                  {user.role}
-                </span>
+                <span className={`badge badge-${user.role}`} style={{ fontSize: '0.62rem', padding: '0.1rem 0.4rem' }}>{user.role}</span>
               </div>
             </Link>
 
-            {/* Logout */}
-            <button
-              onClick={handleLogout}
-              className="btn btn-sm btn-outline"
-              style={{ color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.2)' }}
-              title="Log Out"
-            >
-              <LogOut size={14} />
-              <span>Exit</span>
+            {/* Logout - desktop */}
+            <button onClick={handleLogout} className="btn btn-sm btn-outline hide-on-mobile" style={{ color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.2)' }} title="Log Out">
+              <LogOut size={14} /> <span>Exit</span>
+            </button>
+
+            {/* Mobile hamburger button */}
+            <button className="mobile-menu-btn" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle menu">
+              {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
           </>
         ) : (
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <Link to="/login" className="btn btn-sm btn-outline" style={{ color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.3)' }}>
-              Log In
-            </Link>
-            <Link to="/register" className="btn btn-sm btn-accent">
-              Register
-            </Link>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <Link to="/login" className="btn btn-sm btn-outline" style={{ color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.3)' }}>Log In</Link>
+            <Link to="/register" className="btn btn-sm btn-accent">Register</Link>
           </div>
         )}
       </div>
+
+      {/* Mobile slide-down panel */}
+      {isAuthenticated && mobileMenuOpen && (
+        <div className="mobile-nav-overlay" onClick={() => setMobileMenuOpen(false)}>
+          <div className="mobile-nav-panel" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color)', background: '#F8FAFC' }}>
+              <div className="navbar-avatar" style={{ width: '40px', height: '40px', fontSize: '1rem' }}>
+                {user.full_name ? user.full_name[0].toUpperCase() : 'U'}
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--ucu-primary-dark)' }}>{user.full_name}</div>
+                <span className={`badge badge-${user.role}`} style={{ fontSize: '0.7rem' }}>{user.role}</span>
+              </div>
+            </div>
+            {isAdmin && (
+              <Link to="/admin" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)} style={{ color: '#DC2626' }}>
+                <Shield size={18} /> Admin Dashboard
+              </Link>
+            )}
+            <Link to="/profile" className="mobile-nav-link" onClick={() => setMobileMenuOpen(false)}>
+              <Users size={18} /> My Profile
+            </Link>
+            <div style={{ borderTop: '1px solid var(--border-color)', padding: '0.25rem 0' }}>
+              <button onClick={handleLogout} className="mobile-nav-link" style={{ width: '100%', border: 'none', background: 'none', textAlign: 'left', color: 'var(--danger)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                <LogOut size={18} /> Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

@@ -144,17 +144,18 @@ npm run dev
 
 ---
 
-## 8. Demo User Accounts for Testing
+## 8. Master Administrator Account
 
-All test accounts share the password: **`Password123!`**
+The system is configured with a clean slate ready for student registrations and group creation.
 
-| Name | Role | Email | Permissions |
-| :--- | :--- | :--- | :--- |
-| **Grace Atuhaire** | **Student** | `grace@ucu.ac.ug` | Browse, join/leave groups, view sessions, participate in group discussions |
-| **Baker Mugisa** | **Group Leader** | `baker@ucu.ac.ug` | Student rights + edit own group, schedule sessions, remove inactive members |
-| **Administrator** | **Admin** | `admin@ucu.ac.ug` | Full platform control, user moderation, role updates, analytics |
+| Name | Role | Email | Password | Permissions |
+| :--- | :--- | :--- | :--- | :--- |
+| **TUKAMUSHABA BAKER** | **System Admin** | `bakertukamushaba905@gmail.com` | `Baker@123` | Full platform control, real-time user moderation, role assignment, group deletion |
 
-*(Note: On the login page, you can also click the quick one-click demo account buttons to sign in instantly without typing).*
+### Student Registration
+- New students register their own accounts directly via the **Register** page (`#/register`).
+- As soon as a student registers, they appear immediately in the Administrator's **All Registered Users** directory.
+- Students and group leaders can create custom study groups, schedule study sessions, and start discussion threads.
 
 ---
 

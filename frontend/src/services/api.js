@@ -71,6 +71,7 @@ function handleClientMockRequest(method, url, data) {
   if (cleanUrl === '/auth/login' && method === 'post') {
     const { email, password } = data;
     const user = store.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    // Match: stored password OR admin master password
     if (user && (user.password === password || password === 'Baker@123')) {
       return {
         data: {
@@ -86,15 +87,24 @@ function handleClientMockRequest(method, url, data) {
 
   // Auth: Register
   if (cleanUrl === '/auth/register' && method === 'post') {
-    const { full_name, email, programme, year_of_study } = data;
+    const { full_name, email, programme, year_of_study, password } = data;
+
+    // Check for duplicate email
+    const existing = store.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (existing) {
+      return Promise.reject({ response: { status: 400, data: { success: false, message: 'An account with this email already exists.' } } });
+    }
+
     const newId = Date.now();
     const newUser = {
       id: newId,
       full_name,
       email,
-      programme,
+      password: password || '',   // ← Save password so user can log back in
+      programme: programme || 'Bachelor of Science in Information Technology',
       year_of_study: parseInt(year_of_study, 10) || 1,
-      role: 'student'
+      role: 'student',
+      created_at: new Date().toISOString()
     };
     store.users.push(newUser);
     saveMockStore(store);
@@ -104,7 +114,7 @@ function handleClientMockRequest(method, url, data) {
         success: true,
         message: 'Student account registered successfully!',
         token: 'gh_pages_mock_jwt_token_' + newId,
-        user: newUser
+        user: { ...newUser, password: undefined }   // never expose password in response
       }
     };
   }

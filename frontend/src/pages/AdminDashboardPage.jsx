@@ -33,7 +33,15 @@ const AdminDashboardPage = () => {
 
   useEffect(() => { loadAdminData(); }, [loadAdminData]);
 
-  // Auto-refresh when new notifications arrive (new user registered, group created, etc.)
+  // Poll every 5 seconds for new registrations — catches users registered from any tab/device
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadAdminData();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [loadAdminData]);
+
+  // Also refresh immediately whenever a notification fires (instant feedback)
   useEffect(() => {
     if (notifications.length > 0) loadAdminData();
   }, [notifications.length, loadAdminData]);

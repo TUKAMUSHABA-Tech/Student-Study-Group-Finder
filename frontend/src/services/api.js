@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { broadcastNotification } from '../context/NotificationContext';
 
-// Primary admin account definition
+// Primary master administrator account
 const PRIMARY_ADMIN = {
   id: 1,
   full_name: 'TUKAMUSHABA BAKER',
@@ -13,7 +13,7 @@ const PRIMARY_ADMIN = {
   created_at: '2026-11-16T16:26:15.085Z'
 };
 
-// Default clean initial dataset - strictly ONLY primary admin
+// Initial clean local seed
 const initialMockStore = {
   users: [PRIMARY_ADMIN],
   groups: [],
@@ -23,32 +23,19 @@ const initialMockStore = {
   comments: []
 };
 
-// Demo/default emails to purge permanently from all client stores
-const DEMO_EMAILS = [
-  'admin@ucu.ac.ug',
-  'grace@ucu.ac.ug',
-  'baker@ucu.ac.ug',
-  'student@ucu.ac.ug',
-  'leader@ucu.ac.ug'
-];
+// Global shared cloud database for cross-device & cross-tab sync on GitHub Pages
+const SHARED_CLOUD_OBJECT_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a1f298bf3e4c11';
 
-function isDemoUser(u) {
+// Only purge the legacy hardcoded demo placeholder "Administrator System"
+function isOldSeedPlaceholder(u) {
   if (!u) return false;
   const email = (u.email || '').toLowerCase().trim();
   const name = (u.full_name || '').toLowerCase().trim();
-  if (DEMO_EMAILS.includes(email)) return true;
-  if (name === 'administrator system' || name === 'demo user') return true;
+  if (email === 'admin@ucu.ac.ug' && name.includes('administrator')) return true;
   return false;
 }
 
-function getMockStore() {
-  // 1. Purge legacy obsolete store keys so they never resurrect old demo accounts
-  if (typeof localStorage !== 'undefined') {
-    ['ucu_gh_pages_store_v3', 'ucu_gh_pages_store_v2', 'ucu_gh_pages_store', 'ucu_gh_pages_store_v1'].forEach(k => {
-      try { localStorage.removeItem(k); } catch (e) {}
-    });
-  }
-
+export function getMockStore() {
   let store = null;
   const data = typeof localStorage !== 'undefined' ? localStorage.getItem('ucu_gh_pages_store_v4') : null;
   if (data) {
@@ -63,10 +50,10 @@ function getMockStore() {
     store = JSON.parse(JSON.stringify(initialMockStore));
   }
 
-  // 2. Filter out ALL demo/default accounts completely
-  store.users = (store.users || []).filter(u => !isDemoUser(u));
+  // Purge only legacy placeholder
+  store.users = (store.users || []).filter(u => !isOldSeedPlaceholder(u));
 
-  // 3. Guarantee primary admin is always present and has admin role
+  // Guarantee primary admin is always present and has admin role
   const adminIndex = store.users.findIndex(u => (u.email || '').toLowerCase() === PRIMARY_ADMIN.email.toLowerCase());
   if (adminIndex === -1) {
     store.users.unshift({ ...PRIMARY_ADMIN });
@@ -82,7 +69,6 @@ function getMockStore() {
   if (!Array.isArray(store.posts)) store.posts = [];
   if (!Array.isArray(store.comments)) store.comments = [];
 
-  // Persist cleaned store
   if (typeof localStorage !== 'undefined') {
     try {
       localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
@@ -92,15 +78,82 @@ function getMockStore() {
   return store;
 }
 
-function saveMockStore(store) {
+export function saveMockStore(store) {
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
       window.dispatchEvent(new CustomEvent('ucu_store_updated', { detail: store }));
-      window.dispatchEvent(new StorageEvent('storage', { key: 'ucu_gh_pages_store_v4' }));
+    }
+
+    // Push to shared cloud database in background so other devices / incognito tabs see new users
+    if (typeof fetch !== 'undefined') {
+      fetch(SHARED_CLOUD_OBJECT_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'UCU_STUDY_GROUP_FINDER_SHARED_DATABASE_V1',
+          data: store
+        })
+      }).catch(() => {});
     }
   } catch (e) {
     console.error('saveMockStore error:', e);
+  }
+}
+
+// Background sync from shared cloud database
+export async function syncFromCloud() {
+  if (typeof fetch === 'undefined') return getMockStore();
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(SHARED_CLOUD_OBJECT_URL, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return getMockStore();
+    const json = await res.json();
+    if (!json?.data?.users || !Array.isArray(json.data.users)) return getMockStore();
+
+    const localStore = getMockStore();
+    let updated = false;
+
+    // Merge users from cloud
+    json.data.users.forEach(cu => {
+      if (!isOldSeedPlaceholder(cu)) {
+        const exists = localStore.users.some(
+          lu => (lu.email || '').toLowerCase().trim() === (cu.email || '').toLowerCase().trim()
+        );
+        if (!exists) {
+          localStore.users.push(cu);
+          updated = true;
+        }
+      }
+    });
+
+    // Also push any local users not yet in cloud
+    const cloudUserEmails = new Set(json.data.users.map(u => (u.email || '').toLowerCase().trim()));
+    const missingInCloud = localStore.users.filter(lu => !cloudUserEmails.has((lu.email || '').toLowerCase().trim()));
+    if (missingInCloud.length > 0) {
+      const mergedForCloud = [...localStore.users];
+      fetch(SHARED_CLOUD_OBJECT_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'UCU_STUDY_GROUP_FINDER_SHARED_DATABASE_V1',
+          data: { ...localStore, users: mergedForCloud }
+        })
+      }).catch(() => {});
+    }
+
+    if (updated) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(localStore));
+        window.dispatchEvent(new CustomEvent('ucu_store_updated', { detail: localStore }));
+      }
+    }
+
+    return localStore;
+  } catch (err) {
+    return getMockStore();
   }
 }
 
@@ -125,19 +178,28 @@ realAxios.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Client-side Mock Router for seamless GitHub Pages static evaluation
-function handleClientMockRequest(method, url, data) {
-  const store = getMockStore();
+// Client-side Mock Router for seamless evaluation on GitHub Pages
+async function handleClientMockRequest(method, url, data) {
   const cleanUrl = url.replace('/api', '').split('?')[0];
   const queryStr = url.includes('?') ? url.split('?')[1] : '';
   const params = new URLSearchParams(queryStr);
   const currentUser = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('ucu_study_user') || 'null') : null;
 
+  // Sync with cloud on user queries to guarantee real-time cross-device updates
+  let store = getMockStore();
+
   // Auth: Login
   if (cleanUrl === '/auth/login' && method === 'post') {
     const { email, password } = data;
-    const user = store.users.find(u => (u.email || '').toLowerCase() === String(email || '').trim().toLowerCase());
-    // Match: stored password OR admin master password
+    // Check local store first
+    let user = store.users.find(u => (u.email || '').toLowerCase().trim() === String(email || '').trim().toLowerCase());
+    // If not found locally, try syncing from cloud
+    if (!user) {
+      store = await syncFromCloud();
+      user = store.users.find(u => (u.email || '').toLowerCase().trim() === String(email || '').trim().toLowerCase());
+    }
+
+    // Match stored password OR primary admin master password
     if (user && (user.password === password || password === 'Baker@123')) {
       return {
         data: {
@@ -156,7 +218,8 @@ function handleClientMockRequest(method, url, data) {
     const { full_name, email, programme, year_of_study, password } = data;
 
     // Check for duplicate email
-    const existing = store.users.find(u => (u.email || '').toLowerCase() === String(email).trim().toLowerCase());
+    const trimmedEmail = String(email || '').trim().toLowerCase();
+    const existing = store.users.find(u => (u.email || '').toLowerCase().trim() === trimmedEmail);
     if (existing) {
       return Promise.reject({ response: { status: 400, data: { success: false, message: 'An account with this email already exists.' } } });
     }
@@ -165,18 +228,19 @@ function handleClientMockRequest(method, url, data) {
     const newUser = {
       id: newId,
       full_name: String(full_name).trim(),
-      email: String(email).trim().toLowerCase(),
-      password: password || '',   // Save password so user can log back in
+      email: trimmedEmail,
+      password: password || '',
       programme: programme || 'Bachelor of Science in Information Technology',
       year_of_study: parseInt(year_of_study, 10) || 1,
       role: 'student',
       created_at: new Date().toISOString()
     };
+
     // Prepend new user so it appears at top of All Registered Users list
     store.users.unshift(newUser);
     saveMockStore(store);
 
-    // Broadcast instant notification for admin and platform
+    // Broadcast notification for admin
     broadcastNotification(
       'user_registered',
       `👤 New student registered: ${newUser.full_name} (${newUser.email}) - Added to All Registered Users`,
@@ -415,15 +479,19 @@ function handleClientMockRequest(method, url, data) {
     };
   }
 
-  // Admin Users: List
-  if (cleanUrl === '/admin/users' && method === 'get') {
+  // Admin Users: List (Sync with cloud first to get any newly registered users from other devices)
+  if ((cleanUrl === '/admin/users' || cleanUrl === '/admin/users/') && method === 'get') {
+    try {
+      store = await syncFromCloud();
+    } catch (e) {}
     return { data: { success: true, count: store.users.length, users: store.users } };
   }
 
   // Admin Users: Create directly from Admin Dashboard
-  if (cleanUrl === '/admin/users' && method === 'post') {
+  if ((cleanUrl === '/admin/users' || cleanUrl === '/admin/users/') && method === 'post') {
     const { full_name, email, password, programme, year_of_study, role } = data;
-    const existing = store.users.find(u => (u.email || '').toLowerCase() === String(email).trim().toLowerCase());
+    const trimmedEmail = String(email || '').trim().toLowerCase();
+    const existing = store.users.find(u => (u.email || '').toLowerCase().trim() === trimmedEmail);
     if (existing) {
       return Promise.reject({ response: { status: 400, data: { success: false, message: 'A user with this email already exists.' } } });
     }
@@ -431,7 +499,7 @@ function handleClientMockRequest(method, url, data) {
     const newUser = {
       id: newId,
       full_name: String(full_name).trim(),
-      email: String(email).trim().toLowerCase(),
+      email: trimmedEmail,
       password: password || 'Password123!',
       programme: programme || 'Bachelor of Science in Information Technology',
       year_of_study: parseInt(year_of_study, 10) || 1,
@@ -467,8 +535,8 @@ function handleClientMockRequest(method, url, data) {
     // Protect primary admin from deletion
     store.users = store.users.filter(x => {
       if (String(x.id) === String(uId)) {
-        if ((x.email || '').toLowerCase() === PRIMARY_ADMIN.email.toLowerCase()) {
-          return true; // Protected primary admin cannot be deleted
+        if ((x.email || '').toLowerCase().trim() === PRIMARY_ADMIN.email.toLowerCase().trim()) {
+          return true; // Protected primary admin
         }
         return false;
       }
@@ -497,52 +565,52 @@ function handleClientMockRequest(method, url, data) {
 const api = {
   get: async (url, config) => {
     if (isGitHubPages) {
-      return handleClientMockRequest('get', url);
+      return await handleClientMockRequest('get', url);
     }
     try {
       return await realAxios.get(url, config);
     } catch (err) {
       if (!err.response) {
-        return handleClientMockRequest('get', url);
+        return await handleClientMockRequest('get', url);
       }
       throw err;
     }
   },
   post: async (url, data, config) => {
     if (isGitHubPages) {
-      return handleClientMockRequest('post', url, data);
+      return await handleClientMockRequest('post', url, data);
     }
     try {
       return await realAxios.post(url, data, config);
     } catch (err) {
       if (!err.response) {
-        return handleClientMockRequest('post', url, data);
+        return await handleClientMockRequest('post', url, data);
       }
       throw err;
     }
   },
   put: async (url, data, config) => {
     if (isGitHubPages) {
-      return handleClientMockRequest('put', url, data);
+      return await handleClientMockRequest('put', url, data);
     }
     try {
       return await realAxios.put(url, data, config);
     } catch (err) {
       if (!err.response) {
-        return handleClientMockRequest('put', url, data);
+        return await handleClientMockRequest('put', url, data);
       }
       throw err;
     }
   },
   delete: async (url, config) => {
     if (isGitHubPages) {
-      return handleClientMockRequest('delete', url);
+      return await handleClientMockRequest('delete', url);
     }
     try {
       return await realAxios.delete(url, config);
     } catch (err) {
       if (!err.response) {
-        return handleClientMockRequest('delete', url);
+        return await handleClientMockRequest('delete', url);
       }
       throw err;
     }

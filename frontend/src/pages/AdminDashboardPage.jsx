@@ -27,30 +27,51 @@ const AdminDashboardPage = () => {
   const { notifications } = useNotifications();
 
   const loadAdminData = useCallback(async () => {
+    // 1. Load users with high-fidelity fallback
     try {
-      const [statsRes, usersRes, groupsRes] = await Promise.all([
-        api.get('/admin/stats'),
-        api.get('/admin/users'),
-        api.get('/groups')
-      ]);
-      if (statsRes.data?.success) setStats(statsRes.data.stats);
-      if (usersRes.data?.success && Array.isArray(usersRes.data.users)) {
-        // Purge any lingering demo accounts permanently
-        const demoEmails = ['admin@ucu.ac.ug', 'grace@ucu.ac.ug', 'baker@ucu.ac.ug', 'student@ucu.ac.ug', 'leader@ucu.ac.ug'];
-        const cleanUsers = usersRes.data.users.filter(u => 
-          !demoEmails.includes((u.email || '').toLowerCase()) && 
-          (u.full_name || '').toLowerCase() !== 'administrator system'
-        );
-        setUsers(cleanUsers);
-      }
-      if (groupsRes.data?.success && Array.isArray(groupsRes.data.groups)) {
-        setGroups(groupsRes.data.groups);
+      const usersRes = await api.get('/admin/users');
+      if (usersRes?.data?.success && Array.isArray(usersRes.data.users)) {
+        setUsers(usersRes.data.users);
+      } else {
+        // Fallback: direct localStorage read
+        try {
+          const raw = localStorage.getItem('ucu_gh_pages_store_v4');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed.users) && parsed.users.length > 0) {
+              setUsers(parsed.users);
+            }
+          }
+        } catch (e) {}
       }
     } catch (err) {
-      console.error('Failed to load admin data:', err);
-    } finally {
-      setLoading(false);
+      console.warn('api.get(/admin/users) fallback to localStorage:', err);
+      try {
+        const raw = localStorage.getItem('ucu_gh_pages_store_v4');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed.users) && parsed.users.length > 0) {
+            setUsers(parsed.users);
+          }
+        }
+      } catch (e) {}
     }
+
+    // 2. Load stats independently
+    try {
+      const statsRes = await api.get('/admin/stats');
+      if (statsRes?.data?.success) setStats(statsRes.data.stats);
+    } catch (err) {}
+
+    // 3. Load groups independently
+    try {
+      const groupsRes = await api.get('/groups');
+      if (groupsRes?.data?.success && Array.isArray(groupsRes.data.groups)) {
+        setGroups(groupsRes.data.groups);
+      }
+    } catch (err) {}
+
+    setLoading(false);
   }, []);
 
   // Initial load
@@ -177,15 +198,15 @@ const AdminDashboardPage = () => {
     }
   };
 
-  // Filter users by search term
+  // Filter users by search term safely
   const filteredUsers = users.filter(u => {
     if (!userSearch) return true;
-    const term = userSearch.toLowerCase();
+    const term = userSearch.toLowerCase().trim();
     return (
-      (u.full_name && u.full_name.toLowerCase().includes(term)) ||
-      (u.email && u.email.toLowerCase().includes(term)) ||
-      (u.programme && u.programme.toLowerCase().includes(term)) ||
-      (u.role && u.role.toLowerCase().includes(term))
+      String(u.full_name || '').toLowerCase().includes(term) ||
+      String(u.email || '').toLowerCase().includes(term) ||
+      String(u.programme || '').toLowerCase().includes(term) ||
+      String(u.role || '').toLowerCase().includes(term)
     );
   });
 

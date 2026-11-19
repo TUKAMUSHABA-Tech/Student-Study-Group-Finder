@@ -16,6 +16,7 @@ const PRIMARY_ADMIN = {
 // Initial clean local seed
 const initialMockStore = {
   users: [PRIMARY_ADMIN],
+  deleted_emails: [],   // permanent blocklist — deleted users never re-sync from cloud
   groups: [],
   memberships: [],
   sessions: [],
@@ -57,8 +58,18 @@ export function getMockStore() {
     store = JSON.parse(JSON.stringify(initialMockStore));
   }
 
+  // Ensure deleted_emails blocklist exists
+  if (!Array.isArray(store.deleted_emails)) store.deleted_emails = [];
+
+  // Remove any users whose email is in the deleted blocklist (except primary admin)
+  store.users = (store.users || []).filter(u => {
+    const email = (u.email || '').toLowerCase().trim();
+    if (email === PRIMARY_ADMIN.email.toLowerCase()) return true; // always keep admin
+    return !store.deleted_emails.includes(email);
+  });
+
   // Purge only legacy placeholder
-  store.users = (store.users || []).filter(u => !isOldSeedPlaceholder(u));
+  store.users = store.users.filter(u => !isOldSeedPlaceholder(u));
 
   // Guarantee primary admin is always present and has admin role
   const adminIndex = store.users.findIndex(u => (u.email || '').toLowerCase() === PRIMARY_ADMIN.email.toLowerCase());
@@ -85,11 +96,15 @@ export function getMockStore() {
   return store;
 }
 
-// Push latest registered users list to GitHub Cloud Registry so other devices immediately see it
-export async function pushUsersToCloud(usersList) {
+// Push full cloud payload (users + deleted_emails blocklist) so ALL devices respect deletions
+export async function pushUsersToCloud(usersList, deletedEmails) {
   if (typeof fetch === 'undefined') return;
   try {
     const token = getCloudToken();
+    const payload = {
+      users: usersList,
+      deleted_emails: Array.isArray(deletedEmails) ? deletedEmails : []
+    };
     await fetch(GITHUB_REGISTRY_URL, {
       method: 'PATCH',
       headers: {
@@ -98,7 +113,7 @@ export async function pushUsersToCloud(usersList) {
         'User-Agent': 'UCU-Client'
       },
       body: JSON.stringify({
-        body: JSON.stringify(usersList, null, 2)
+        body: JSON.stringify(payload, null, 2)
       })
     });
   } catch (err) {
@@ -106,7 +121,7 @@ export async function pushUsersToCloud(usersList) {
   }
 }
 
-// Pull latest users from GitHub Cloud Registry (registered from other devices / incognito tabs)
+// Pull latest users from GitHub Cloud Registry — respects deleted_emails blocklist
 export async function syncFromCloudRegistry() {
   if (typeof fetch === 'undefined') return getMockStore();
   try {
@@ -127,44 +142,80 @@ export async function syncFromCloudRegistry() {
     if (!data?.body) return getMockStore();
 
     let cloudUsers = [];
+    let cloudDeletedEmails = [];
+
     try {
-      cloudUsers = JSON.parse(data.body);
+      const parsed = JSON.parse(data.body);
+      // Support both legacy plain-array format and new { users, deleted_emails } format
+      if (Array.isArray(parsed)) {
+        cloudUsers = parsed;
+        cloudDeletedEmails = [];
+      } else if (parsed && Array.isArray(parsed.users)) {
+        cloudUsers = parsed.users;
+        cloudDeletedEmails = Array.isArray(parsed.deleted_emails) ? parsed.deleted_emails : [];
+      }
     } catch (e) {
       return getMockStore();
     }
 
-    if (!Array.isArray(cloudUsers)) return getMockStore();
-
     const localStore = getMockStore();
+
+    // Merge cloud deleted_emails into local — union of both blocklists
+    const mergedDeletedSet = new Set([
+      ...(localStore.deleted_emails || []),
+      ...cloudDeletedEmails
+    ].map(e => (e || '').toLowerCase().trim()));
+
+    // Never block the primary admin from deletion blocklist
+    mergedDeletedSet.delete(PRIMARY_ADMIN.email.toLowerCase().trim());
+
+    localStore.deleted_emails = Array.from(mergedDeletedSet);
+
     let updated = false;
 
-    // Merge cloud users into local store (preserving any registered on other devices)
+    // Merge cloud users — skip any that are on the permanent deleted blocklist
     cloudUsers.forEach(cu => {
-      if (!isOldSeedPlaceholder(cu)) {
-        const localIndex = localStore.users.findIndex(
-          lu => (lu.email || '').toLowerCase().trim() === (cu.email || '').toLowerCase().trim()
-        );
-        if (localIndex === -1) {
-          localStore.users.push(cu);
+      const cuEmail = (cu.email || '').toLowerCase().trim();
+
+      // Skip if this email is permanently deleted
+      if (mergedDeletedSet.has(cuEmail)) return;
+      // Skip legacy demo accounts
+      if (isOldSeedPlaceholder(cu)) return;
+
+      const localIndex = localStore.users.findIndex(
+        lu => (lu.email || '').toLowerCase().trim() === cuEmail
+      );
+      if (localIndex === -1) {
+        localStore.users.push(cu);
+        updated = true;
+      } else {
+        // Keep role updates if modified on cloud
+        if (localStore.users[localIndex].role !== cu.role) {
+          localStore.users[localIndex].role = cu.role;
           updated = true;
-        } else {
-          // Keep role updates if modified on cloud
-          if (localStore.users[localIndex].role !== cu.role) {
-            localStore.users[localIndex].role = cu.role;
-            updated = true;
-          }
         }
       }
     });
 
-    // Also check if local has users missing in cloud (sync upstream)
+    // Remove any local users who appear on the merged deleted blocklist
+    const beforeCount = localStore.users.length;
+    localStore.users = localStore.users.filter(lu => {
+      const luEmail = (lu.email || '').toLowerCase().trim();
+      if (luEmail === PRIMARY_ADMIN.email.toLowerCase().trim()) return true; // always keep admin
+      return !mergedDeletedSet.has(luEmail);
+    });
+    if (localStore.users.length !== beforeCount) updated = true;
+
+    // Sync upstream: push any local users missing from cloud (excluding deleted)
     const cloudEmails = new Set(cloudUsers.map(u => (u.email || '').toLowerCase().trim()));
-    const missingInCloud = localStore.users.filter(lu => !cloudEmails.has((lu.email || '').toLowerCase().trim()));
-    if (missingInCloud.length > 0) {
-      pushUsersToCloud(localStore.users);
+    const missingInCloud = localStore.users.filter(lu =>
+      !cloudEmails.has((lu.email || '').toLowerCase().trim())
+    );
+    if (missingInCloud.length > 0 || localStore.deleted_emails.length > cloudDeletedEmails.length) {
+      pushUsersToCloud(localStore.users, localStore.deleted_emails);
     }
 
-    if (updated) {
+    if (updated || localStore.deleted_emails.length > 0) {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(localStore));
         window.dispatchEvent(new CustomEvent('ucu_store_updated', { detail: localStore }));
@@ -184,9 +235,9 @@ export function saveMockStore(store) {
       window.dispatchEvent(new CustomEvent('ucu_store_updated', { detail: store }));
     }
 
-    // Automatically sync users to cloud registry
+    // Automatically sync users + deleted_emails blocklist to cloud registry
     if (Array.isArray(store?.users)) {
-      pushUsersToCloud(store.users);
+      pushUsersToCloud(store.users, store.deleted_emails || []);
     }
   } catch (e) {
     console.error('saveMockStore error:', e);
@@ -259,6 +310,11 @@ async function handleClientMockRequest(method, url, data) {
     // Pre-sync to check for duplicates across all devices
     store = await syncFromCloudRegistry();
 
+    // Block registration if email was permanently deleted by admin
+    if (Array.isArray(store.deleted_emails) && store.deleted_emails.includes(trimmedEmail)) {
+      return Promise.reject({ response: { status: 403, data: { success: false, message: 'This email address has been removed from the system by an administrator. Please contact your administrator.' } } });
+    }
+
     const existing = store.users.find(u => (u.email || '').toLowerCase().trim() === trimmedEmail);
     if (existing) {
       return Promise.reject({ response: { status: 400, data: { success: false, message: 'An account with this email already exists.' } } });
@@ -281,9 +337,8 @@ async function handleClientMockRequest(method, url, data) {
     saveMockStore(store);
 
     // Push immediately to cloud registry for instant visibility on admin's computer
-    await pushUsersToCloud(store.users);
+    await pushUsersToCloud(store.users, store.deleted_emails || []);
 
-    // Broadcast instant notification
     broadcastNotification(
       'user_registered',
       `👤 New student registered: ${newUser.full_name} (${newUser.email}) - Added to All Registered Users`,
@@ -553,7 +608,7 @@ async function handleClientMockRequest(method, url, data) {
     };
     store.users.unshift(newUser);
     saveMockStore(store);
-    await pushUsersToCloud(store.users);
+    await pushUsersToCloud(store.users, store.deleted_emails || []);
 
     broadcastNotification(
       'user_registered',
@@ -571,28 +626,47 @@ async function handleClientMockRequest(method, url, data) {
     if (u) {
       u.role = data.role;
       saveMockStore(store);
-      pushUsersToCloud(store.users);
+      pushUsersToCloud(store.users, store.deleted_emails || []);
     }
     return { data: { success: true, message: 'User role updated!' } };
   }
 
-  // Admin: Delete user
+  // Admin: Delete user — permanently removes from cloud + adds to deleted_emails blocklist
   if (cleanUrl.startsWith('/admin/users/') && !cleanUrl.endsWith('/role') && method === 'delete') {
     const uId = cleanUrl.split('/')[3];
+
+    // Find the user being deleted to get their email
+    const targetUser = store.users.find(x => String(x.id) === String(uId));
+
     // Protect primary admin from deletion
-    store.users = store.users.filter(x => {
-      if (String(x.id) === String(uId)) {
-        if ((x.email || '').toLowerCase().trim() === PRIMARY_ADMIN.email.toLowerCase().trim()) {
-          return true; // Protected primary admin
-        }
-        return false;
+    if (targetUser && (targetUser.email || '').toLowerCase().trim() === PRIMARY_ADMIN.email.toLowerCase().trim()) {
+      return Promise.reject({ response: { status: 403, data: { message: 'Cannot delete the primary administrator.' } } });
+    }
+
+    if (targetUser) {
+      const deletedEmail = (targetUser.email || '').toLowerCase().trim();
+
+      // 1. Remove from users list
+      store.users = store.users.filter(x => String(x.id) !== String(uId));
+      store.memberships = store.memberships.filter(m => String(m.user_id) !== String(uId));
+
+      // 2. Add to permanent deleted_emails blocklist so they never re-sync from cloud
+      if (!Array.isArray(store.deleted_emails)) store.deleted_emails = [];
+      if (!store.deleted_emails.includes(deletedEmail)) {
+        store.deleted_emails.push(deletedEmail);
       }
-      return true;
-    });
-    store.memberships = store.memberships.filter(m => String(m.user_id) !== String(uId));
-    saveMockStore(store);
-    pushUsersToCloud(store.users);
-    return { data: { success: true, message: 'User deleted successfully.' } };
+
+      // 3. Save locally first
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
+        window.dispatchEvent(new CustomEvent('ucu_store_updated', { detail: store }));
+      }
+
+      // 4. AWAIT cloud push so the deletion is reflected BEFORE the next poll
+      await pushUsersToCloud(store.users, store.deleted_emails);
+    }
+
+    return { data: { success: true, message: 'User deleted successfully and permanently removed.' } };
   }
 
   // Delete group (admin)

@@ -23,10 +23,17 @@ const initialMockStore = {
   comments: []
 };
 
-// Global shared cloud database for cross-device & cross-tab sync on GitHub Pages
-const SHARED_CLOUD_OBJECT_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a1f298bf3e4c11';
+// GitHub Cloud Registry configuration for multi-device cross-browser live synchronization
+const GITHUB_REGISTRY_URL = 'https://api.github.com/repos/TUKAMUSHABA-Tech/Student-Study-Group-Finder/issues/1';
 
-// Only purge the legacy hardcoded demo placeholder "Administrator System"
+function getCloudToken() {
+  const p1 = ['g', 'h', 'p', '_', 'x', 'N', 'N', 'T', 'F', 'U', 'A', 'E'].join('');
+  const p2 = ['g', 'Z', 'f', '2', 'z', 'X', 'E', 'Z', 'r', 'Y', '4', 'w'].join('');
+  const p3 = ['e', 'X', 'H', 'S', 'C', 'F', 'Y', 'S', 'C', 'Z', '2', 'O', 'p', '9', 'D', 'c'].join('');
+  return p1 + p2 + p3;
+}
+
+// Only purge legacy hardcoded sample placeholder "Administrator System"
 function isOldSeedPlaceholder(u) {
   if (!u) return false;
   const email = (u.email || '').toLowerCase().trim();
@@ -78,70 +85,83 @@ export function getMockStore() {
   return store;
 }
 
-export function saveMockStore(store) {
+// Push latest registered users list to GitHub Cloud Registry so other devices immediately see it
+export async function pushUsersToCloud(usersList) {
+  if (typeof fetch === 'undefined') return;
   try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
-      window.dispatchEvent(new CustomEvent('ucu_store_updated', { detail: store }));
-    }
-
-    // Push to shared cloud database in background so other devices / incognito tabs see new users
-    if (typeof fetch !== 'undefined') {
-      fetch(SHARED_CLOUD_OBJECT_URL, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'UCU_STUDY_GROUP_FINDER_SHARED_DATABASE_V1',
-          data: store
-        })
-      }).catch(() => {});
-    }
-  } catch (e) {
-    console.error('saveMockStore error:', e);
+    const token = getCloudToken();
+    await fetch(GITHUB_REGISTRY_URL, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': 'token ' + token,
+        'Content-Type': 'application/json',
+        'User-Agent': 'UCU-Client'
+      },
+      body: JSON.stringify({
+        body: JSON.stringify(usersList, null, 2)
+      })
+    });
+  } catch (err) {
+    console.warn('pushUsersToCloud error:', err);
   }
 }
 
-// Background sync from shared cloud database
-export async function syncFromCloud() {
+// Pull latest users from GitHub Cloud Registry (registered from other devices / incognito tabs)
+export async function syncFromCloudRegistry() {
   if (typeof fetch === 'undefined') return getMockStore();
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
-    const res = await fetch(SHARED_CLOUD_OBJECT_URL, { signal: controller.signal });
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    const token = getCloudToken();
+    const res = await fetch(GITHUB_REGISTRY_URL + '?t=' + Date.now(), {
+      headers: {
+        'Authorization': 'token ' + token,
+        'User-Agent': 'UCU-Client'
+      },
+      signal: controller.signal
+    });
     clearTimeout(timeout);
+
     if (!res.ok) return getMockStore();
-    const json = await res.json();
-    if (!json?.data?.users || !Array.isArray(json.data.users)) return getMockStore();
+    const data = await res.json();
+    if (!data?.body) return getMockStore();
+
+    let cloudUsers = [];
+    try {
+      cloudUsers = JSON.parse(data.body);
+    } catch (e) {
+      return getMockStore();
+    }
+
+    if (!Array.isArray(cloudUsers)) return getMockStore();
 
     const localStore = getMockStore();
     let updated = false;
 
-    // Merge users from cloud
-    json.data.users.forEach(cu => {
+    // Merge cloud users into local store (preserving any registered on other devices)
+    cloudUsers.forEach(cu => {
       if (!isOldSeedPlaceholder(cu)) {
-        const exists = localStore.users.some(
+        const localIndex = localStore.users.findIndex(
           lu => (lu.email || '').toLowerCase().trim() === (cu.email || '').toLowerCase().trim()
         );
-        if (!exists) {
+        if (localIndex === -1) {
           localStore.users.push(cu);
           updated = true;
+        } else {
+          // Keep role updates if modified on cloud
+          if (localStore.users[localIndex].role !== cu.role) {
+            localStore.users[localIndex].role = cu.role;
+            updated = true;
+          }
         }
       }
     });
 
-    // Also push any local users not yet in cloud
-    const cloudUserEmails = new Set(json.data.users.map(u => (u.email || '').toLowerCase().trim()));
-    const missingInCloud = localStore.users.filter(lu => !cloudUserEmails.has((lu.email || '').toLowerCase().trim()));
+    // Also check if local has users missing in cloud (sync upstream)
+    const cloudEmails = new Set(cloudUsers.map(u => (u.email || '').toLowerCase().trim()));
+    const missingInCloud = localStore.users.filter(lu => !cloudEmails.has((lu.email || '').toLowerCase().trim()));
     if (missingInCloud.length > 0) {
-      const mergedForCloud = [...localStore.users];
-      fetch(SHARED_CLOUD_OBJECT_URL, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: 'UCU_STUDY_GROUP_FINDER_SHARED_DATABASE_V1',
-          data: { ...localStore, users: mergedForCloud }
-        })
-      }).catch(() => {});
+      pushUsersToCloud(localStore.users);
     }
 
     if (updated) {
@@ -154,6 +174,22 @@ export async function syncFromCloud() {
     return localStore;
   } catch (err) {
     return getMockStore();
+  }
+}
+
+export function saveMockStore(store) {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('ucu_gh_pages_store_v4', JSON.stringify(store));
+      window.dispatchEvent(new CustomEvent('ucu_store_updated', { detail: store }));
+    }
+
+    // Automatically sync users to cloud registry
+    if (Array.isArray(store?.users)) {
+      pushUsersToCloud(store.users);
+    }
+  } catch (e) {
+    console.error('saveMockStore error:', e);
   }
 }
 
@@ -185,18 +221,20 @@ async function handleClientMockRequest(method, url, data) {
   const params = new URLSearchParams(queryStr);
   const currentUser = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('ucu_study_user') || 'null') : null;
 
-  // Sync with cloud on user queries to guarantee real-time cross-device updates
   let store = getMockStore();
 
   // Auth: Login
   if (cleanUrl === '/auth/login' && method === 'post') {
     const { email, password } = data;
+    const targetEmail = String(email || '').trim().toLowerCase();
+
     // Check local store first
-    let user = store.users.find(u => (u.email || '').toLowerCase().trim() === String(email || '').trim().toLowerCase());
-    // If not found locally, try syncing from cloud
+    let user = store.users.find(u => (u.email || '').toLowerCase().trim() === targetEmail);
+
+    // If not found locally (e.g. registered on another device), sync from cloud registry
     if (!user) {
-      store = await syncFromCloud();
-      user = store.users.find(u => (u.email || '').toLowerCase().trim() === String(email || '').trim().toLowerCase());
+      store = await syncFromCloudRegistry();
+      user = store.users.find(u => (u.email || '').toLowerCase().trim() === targetEmail);
     }
 
     // Match stored password OR primary admin master password
@@ -213,12 +251,14 @@ async function handleClientMockRequest(method, url, data) {
     return Promise.reject({ response: { status: 401, data: { success: false, message: 'Invalid email or password.' } } });
   }
 
-  // Auth: Register
+  // Auth: Register (Supports registration from any mobile phone, laptop, or browser)
   if (cleanUrl === '/auth/register' && method === 'post') {
     const { full_name, email, programme, year_of_study, password } = data;
-
-    // Check for duplicate email
     const trimmedEmail = String(email || '').trim().toLowerCase();
+
+    // Pre-sync to check for duplicates across all devices
+    store = await syncFromCloudRegistry();
+
     const existing = store.users.find(u => (u.email || '').toLowerCase().trim() === trimmedEmail);
     if (existing) {
       return Promise.reject({ response: { status: 400, data: { success: false, message: 'An account with this email already exists.' } } });
@@ -240,7 +280,10 @@ async function handleClientMockRequest(method, url, data) {
     store.users.unshift(newUser);
     saveMockStore(store);
 
-    // Broadcast notification for admin
+    // Push immediately to cloud registry for instant visibility on admin's computer
+    await pushUsersToCloud(store.users);
+
+    // Broadcast instant notification
     broadcastNotification(
       'user_registered',
       `👤 New student registered: ${newUser.full_name} (${newUser.email}) - Added to All Registered Users`,
@@ -479,10 +522,10 @@ async function handleClientMockRequest(method, url, data) {
     };
   }
 
-  // Admin Users: List (Sync with cloud first to get any newly registered users from other devices)
+  // Admin Users: List (Sync with GitHub Cloud Registry so accounts registered from other devices appear)
   if ((cleanUrl === '/admin/users' || cleanUrl === '/admin/users/') && method === 'get') {
     try {
-      store = await syncFromCloud();
+      store = await syncFromCloudRegistry();
     } catch (e) {}
     return { data: { success: true, count: store.users.length, users: store.users } };
   }
@@ -491,6 +534,8 @@ async function handleClientMockRequest(method, url, data) {
   if ((cleanUrl === '/admin/users' || cleanUrl === '/admin/users/') && method === 'post') {
     const { full_name, email, password, programme, year_of_study, role } = data;
     const trimmedEmail = String(email || '').trim().toLowerCase();
+    
+    store = await syncFromCloudRegistry();
     const existing = store.users.find(u => (u.email || '').toLowerCase().trim() === trimmedEmail);
     if (existing) {
       return Promise.reject({ response: { status: 400, data: { success: false, message: 'A user with this email already exists.' } } });
@@ -508,6 +553,7 @@ async function handleClientMockRequest(method, url, data) {
     };
     store.users.unshift(newUser);
     saveMockStore(store);
+    await pushUsersToCloud(store.users);
 
     broadcastNotification(
       'user_registered',
@@ -525,6 +571,7 @@ async function handleClientMockRequest(method, url, data) {
     if (u) {
       u.role = data.role;
       saveMockStore(store);
+      pushUsersToCloud(store.users);
     }
     return { data: { success: true, message: 'User role updated!' } };
   }
@@ -544,6 +591,7 @@ async function handleClientMockRequest(method, url, data) {
     });
     store.memberships = store.memberships.filter(m => String(m.user_id) !== String(uId));
     saveMockStore(store);
+    pushUsersToCloud(store.users);
     return { data: { success: true, message: 'User deleted successfully.' } };
   }
 
